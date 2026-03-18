@@ -1,0 +1,364 @@
+{
+  "_commentaire": "Paramètres de calcul gorge O-ring — éditable sans modifier le code",
+  "_version": "1.0",
+  "_unite": "mm / % / bar selon contexte",
+  "_sources": [
+    "ISO 286-1:2010 (tables IT)",
+    "Parker O-Ring Handbook ORD 5700",
+    "Trelleborg Sealing Solutions Design Guide",
+    "ISO 3601-2:2016 (tolérances gorge)"
+  ],
+  "standards_disponibles": [
+    "ISO_3601",
+    "DIN_3771",
+    "JIS_B2401",
+    "METRIC",
+    "AS_568"
+  ],
+  "types_montage": [
+    "statique",
+    "dynamique_translation",
+    "dynamique_rotation"
+  ],
+  "positions": [
+    "arbre",
+    "alesage"
+  ],
+  "stretch": {
+    "_commentaire": "Seuils étirement d1 sur pièce (%). Positif = étirement, négatif = compression.",
+    "arbre": {
+      "min_accepte": -0.5,
+      "max_filtre": 6.0,
+      "max_avertissement": 3.0,
+      "max_acceptable": 5.0,
+      "cible": 2.0
+    },
+    "alesage": {
+      "compression_min": 0.0,
+      "compression_max": 3.0
+    }
+  },
+  "stretch_global": {
+    "_commentaire": "Seuils globaux utilisés dans calculer_gorge()",
+    "max_bloquant": 8.0,
+    "max_cible": 5.0
+  },
+  "b_pratique": {
+    "_commentaire": "Largeur gorge pratique = coefficient × d2. Utilisé si b_min < b_pratique.",
+    "statique": 1.4,
+    "dynamique_translation": 1.55,
+    "dynamique_rotation": 1.55
+  },
+  "tolerances_gorge": {
+    "_commentaire": "Coefficients indicatifs pour h (profondeur) et b (largeur). Statique=H8/H9, Dynamique=H7/H8.",
+    "statique": {
+      "h_coeff_inf": 0.04,
+      "b_coeff_sup": 0.02,
+      "qualite_h": "H8",
+      "qualite_b": "H9"
+    },
+    "dynamique": {
+      "h_coeff_inf": 0.025,
+      "b_coeff_sup": 0.015,
+      "qualite_h": "H7",
+      "qualite_b": "H8"
+    }
+  },
+  "it_iso286": {
+    "_commentaire": "Table IT ISO 286-1. Colonnes : IT6, IT7, IT8, IT9, IT10, IT11 (µm). Bornes en mm.",
+    "_grades": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "table": [
+      {
+        "d_min": 0,
+        "d_max": 3,
+        "valeurs": [
+          6,
+          10,
+          14,
+          25,
+          40,
+          60
+        ]
+      },
+      {
+        "d_min": 3,
+        "d_max": 6,
+        "valeurs": [
+          8,
+          12,
+          18,
+          30,
+          48,
+          75
+        ]
+      },
+      {
+        "d_min": 6,
+        "d_max": 10,
+        "valeurs": [
+          9,
+          15,
+          22,
+          36,
+          58,
+          90
+        ]
+      },
+      {
+        "d_min": 10,
+        "d_max": 18,
+        "valeurs": [
+          11,
+          18,
+          27,
+          43,
+          70,
+          110
+        ]
+      },
+      {
+        "d_min": 18,
+        "d_max": 30,
+        "valeurs": [
+          13,
+          21,
+          33,
+          52,
+          84,
+          130
+        ]
+      },
+      {
+        "d_min": 30,
+        "d_max": 50,
+        "valeurs": [
+          16,
+          25,
+          39,
+          62,
+          100,
+          160
+        ]
+      },
+      {
+        "d_min": 50,
+        "d_max": 80,
+        "valeurs": [
+          19,
+          30,
+          46,
+          74,
+          120,
+          190
+        ]
+      },
+      {
+        "d_min": 80,
+        "d_max": 120,
+        "valeurs": [
+          22,
+          35,
+          54,
+          87,
+          140,
+          220
+        ]
+      },
+      {
+        "d_min": 120,
+        "d_max": 180,
+        "valeurs": [
+          25,
+          40,
+          63,
+          100,
+          160,
+          250
+        ]
+      },
+      {
+        "d_min": 180,
+        "d_max": 250,
+        "valeurs": [
+          29,
+          46,
+          72,
+          115,
+          185,
+          290
+        ]
+      },
+      {
+        "d_min": 250,
+        "d_max": 315,
+        "valeurs": [
+          32,
+          52,
+          81,
+          130,
+          210,
+          320
+        ]
+      },
+      {
+        "d_min": 315,
+        "d_max": 400,
+        "valeurs": [
+          36,
+          57,
+          89,
+          140,
+          230,
+          360
+        ]
+      },
+      {
+        "d_min": 400,
+        "d_max": 500,
+        "valeurs": [
+          40,
+          63,
+          97,
+          155,
+          250,
+          400
+        ]
+      }
+    ]
+  },
+  "couleurs_materiaux": {
+    "_commentaire": "Couleurs des joints selon matériau. RGB entiers 0-255, shininess 0-100 (0=mat).",
+    "_defaut": {
+      "rgb": [
+        30,
+        25,
+        22
+      ],
+      "shininess": 5
+    },
+    "NBR": {
+      "rgb": [
+        30,
+        25,
+        22
+      ],
+      "shininess": 5,
+      "_note": "noir mat brun — nitrile standard"
+    },
+    "HNBR": {
+      "rgb": [
+        40,
+        32,
+        28
+      ],
+      "shininess": 8,
+      "_note": "noir légèrement plus chaud"
+    },
+    "FKM": {
+      "rgb": [
+        100,
+        65,
+        20
+      ],
+      "shininess": 10,
+      "_note": "brun foncé — Viton"
+    },
+    "EPDM": {
+      "rgb": [
+        55,
+        55,
+        55
+      ],
+      "shininess": 5,
+      "_note": "gris anthracite"
+    },
+    "VMQ": {
+      "rgb": [
+        220,
+        210,
+        200
+      ],
+      "shininess": 15,
+      "_note": "beige/crème — silicone"
+    },
+    "FVMQ": {
+      "rgb": [
+        200,
+        190,
+        175
+      ],
+      "shininess": 15,
+      "_note": "silicone fluoré"
+    },
+    "FFKM": {
+      "rgb": [
+        80,
+        75,
+        70
+      ],
+      "shininess": 12,
+      "_note": "gris foncé — perfluoroélastomère"
+    },
+    "PTFE": {
+      "rgb": [
+        240,
+        240,
+        240
+      ],
+      "shininess": 20,
+      "_note": "blanc cassé"
+    },
+    "CR": {
+      "rgb": [
+        45,
+        45,
+        42
+      ],
+      "shininess": 6,
+      "_note": "noir-gris — néoprène"
+    },
+    "IIR": {
+      "rgb": [
+        60,
+        58,
+        55
+      ],
+      "shininess": 6,
+      "_note": "noir-gris — butyle"
+    },
+    "ACM": {
+      "rgb": [
+        120,
+        80,
+        40
+      ],
+      "shininess": 8,
+      "_note": "brun clair — polyacrylate"
+    },
+    "AU": {
+      "rgb": [
+        180,
+        140,
+        60
+      ],
+      "shininess": 10,
+      "_note": "beige doré — polyuréthane"
+    },
+    "EU": {
+      "rgb": [
+        170,
+        130,
+        55
+      ],
+      "shininess": 10,
+      "_note": "beige doré — polyuréthane éther"
+    }
+  }
+}

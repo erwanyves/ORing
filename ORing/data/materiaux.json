@@ -1,0 +1,238 @@
+{
+  "_commentaire": "Table matériaux joints toriques — ORing macro FreeCAD",
+  "_version": "1.0",
+  "_source": "Parker O-Ring Handbook, Trelleborg, ISO 3601",
+
+  "materiaux": {
+
+    "NBR": {
+      "nom_complet": "Nitrile Butadiène Rubber",
+      "abreviation": "NBR",
+      "description": "Matériau standard le plus courant. Bonne résistance aux huiles minérales et carburants.",
+      "temperature": {
+        "min_C": -40,
+        "max_C": 120,
+        "commentaire": "Jusqu'à 135°C en statique selon formulation"
+      },
+      "pression_max_bar": 400,
+      "durete_shore_A": [70, 80, 90],
+      "durete_standard": 70,
+      "compatibilite": [
+        "huiles_minérales",
+        "huiles_hydrauliques_HM",
+        "carburants_pétroliers",
+        "graisses_minérales",
+        "eau_jusqu_à_80C",
+        "gaz_naturel",
+        "CO2",
+        "air_comprimé"
+      ],
+      "incompatibilite": [
+        "solvants_chlorés",
+        "cétones",
+        "esters",
+        "fluides_de_frein_DOT3_DOT4",
+        "acide_nitrique",
+        "ozone",
+        "huiles_de_silicone",
+        "Skydrol"
+      ],
+      "applications_typiques": [
+        "hydraulique_industrielle",
+        "pneumatique",
+        "automobile",
+        "équipements_pétroliers"
+      ]
+    },
+
+    "FKM": {
+      "nom_complet": "Fluorocarbon Rubber (Viton®)",
+      "abreviation": "FKM",
+      "description": "Haute résistance chimique et thermique. Référence pour applications exigeantes.",
+      "temperature": {
+        "min_C": -20,
+        "max_C": 200,
+        "commentaire": "Jusqu'à 220°C en statique. Tenue cryogénique limitée."
+      },
+      "pression_max_bar": 400,
+      "durete_shore_A": [70, 80, 90],
+      "durete_standard": 70,
+      "compatibilite": [
+        "huiles_minérales",
+        "carburants_pétroliers",
+        "huiles_synthétiques",
+        "solvants_chlorés",
+        "acides_concentrés",
+        "fluides_hydrauliques_HF",
+        "vapeur_jusqu_à_150C",
+        "ozone",
+        "intempéries"
+      ],
+      "incompatibilite": [
+        "cétones",
+        "esters_basse_masse_molaire",
+        "amines",
+        "acide_fluorhydrique",
+        "fluides_de_frein_DOT3_DOT4",
+        "Skydrol",
+        "méthanol_concentré"
+      ],
+      "applications_typiques": [
+        "chimie_pétrolière",
+        "aéronautique",
+        "automobile_haute_performance",
+        "industrie_chimique"
+      ]
+    },
+
+    "EPDM": {
+      "nom_complet": "Ethylène Propylène Diène Monomère",
+      "abreviation": "EPDM",
+      "description": "Excellente résistance à l'eau chaude, vapeur, ozone et UV. Incompatible huiles minérales.",
+      "temperature": {
+        "min_C": -50,
+        "max_C": 150,
+        "commentaire": "Jusqu'à 175°C en statique. Bon comportement cryogénique."
+      },
+      "pression_max_bar": 200,
+      "durete_shore_A": [70, 80],
+      "durete_standard": 70,
+      "compatibilite": [
+        "eau_chaude",
+        "vapeur_jusqu_à_175C",
+        "fluides_de_frein_DOT3_DOT4_DOT5.1",
+        "Skydrol",
+        "acides_dilués",
+        "bases_dilués",
+        "cétones",
+        "alcools",
+        "ozone",
+        "UV",
+        "eau_déminéralisée"
+      ],
+      "incompatibilite": [
+        "huiles_minérales",
+        "carburants_pétroliers",
+        "graisses_minérales",
+        "huiles_hydrauliques_HM",
+        "solvants_aromatiques",
+        "solvants_chlorés"
+      ],
+      "applications_typiques": [
+        "eau_potable",
+        "vapeur",
+        "industrie_alimentaire",
+        "fluides_de_frein",
+        "applications_extérieures"
+      ]
+    },
+
+    "VMQ": {
+      "nom_complet": "Silicone (Vinyl Methyl Silicone)",
+      "abreviation": "VMQ",
+      "description": "Plage thermique très large. Résistance alimentaire et médicale. Résistance mécanique limitée.",
+      "temperature": {
+        "min_C": -60,
+        "max_C": 200,
+        "commentaire": "Jusqu'à 230°C en statique selon formulation. Excellent comportement cryogénique."
+      },
+      "pression_max_bar": 100,
+      "durete_shore_A": [40, 50, 60, 70],
+      "durete_standard": 70,
+      "compatibilite": [
+        "eau_chaude",
+        "vapeur_jusqu_à_120C",
+        "huiles_de_silicone",
+        "acides_dilués",
+        "bases_dilués",
+        "alcools",
+        "ozone",
+        "UV",
+        "applications_alimentaires",
+        "applications_médicales"
+      ],
+      "incompatibilite": [
+        "huiles_minérales_concentrées",
+        "carburants_pétroliers",
+        "solvants_chlorés",
+        "solvants_aromatiques",
+        "vapeur_haute_pression"
+      ],
+      "applications_typiques": [
+        "industrie_alimentaire",
+        "médical",
+        "électronique",
+        "applications_cryogéniques",
+        "haute_température_statique"
+      ]
+    },
+
+    "FFKM": {
+      "nom_complet": "Perfluoroelastomère (Kalrez®, Simriz®)",
+      "abreviation": "FFKM",
+      "description": "Résistance chimique quasi universelle. Coût très élevé. Applications critiques uniquement.",
+      "temperature": {
+        "min_C": -10,
+        "max_C": 275,
+        "commentaire": "Certaines formulations jusqu'à 327°C. Tenue cryogénique limitée."
+      },
+      "pression_max_bar": 400,
+      "durete_shore_A": [70, 75, 80],
+      "durete_standard": 75,
+      "compatibilite": [
+        "quasi_universelle",
+        "acides_concentrés",
+        "bases_concentrées",
+        "solvants_chlorés",
+        "solvants_aromatiques",
+        "cétones",
+        "esters",
+        "plasma",
+        "vapeur_haute_pression",
+        "huiles_haute_température"
+      ],
+      "incompatibilite": [
+        "certains_fluorures_actifs",
+        "métaux_alcalins_fondus"
+      ],
+      "applications_typiques": [
+        "semi_conducteurs",
+        "chimie_fine",
+        "pétrochimie_haute_température",
+        "médical_critique"
+      ]
+    },
+
+    "PTFE": {
+      "nom_complet": "Polytétrafluoroéthylène",
+      "abreviation": "PTFE",
+      "description": "Cas spécial : non élastomère. Joint d'appui ou bague anti-extrusion. Non utilisé seul comme JT.",
+      "temperature": {
+        "min_C": -200,
+        "max_C": 260,
+        "commentaire": "Matériau thermoplastique. Utilisé en bague anti-extrusion ou joint d'appui."
+      },
+      "pression_max_bar": 1000,
+      "durete_shore_A": [],
+      "durete_standard": null,
+      "compatibilite": [
+        "quasi_universelle",
+        "acides_concentrés",
+        "bases_concentrées",
+        "solvants",
+        "cryogénie"
+      ],
+      "incompatibilite": [
+        "métaux_alcalins_fondus",
+        "fluor_gazeux_haute_température"
+      ],
+      "applications_typiques": [
+        "bague_anti_extrusion",
+        "haute_pression",
+        "chimie_aggressive"
+      ],
+      "attention": "Non utilisé seul comme joint torique dynamique — complément ou cas spéciaux uniquement"
+    }
+
+  }
+}
