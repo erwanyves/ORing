@@ -1,4 +1,4 @@
-# ORing — O-Ring Groove Macro for FreeCAD
+# ORing — O-Ring and Groove Macro for FreeCAD
 
 [![License: LGPL v2.1](https://img.shields.io/badge/License-LGPL_v2.1-blue.svg)](https://www.gnu.org/licenses/lgpl-2.1)
 [![FreeCAD](https://img.shields.io/badge/FreeCAD-1.0+-orange.svg)](https://www.freecad.org)
