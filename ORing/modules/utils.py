@@ -49,10 +49,13 @@ def message_avertissement(titre: str, texte: str) -> None:
         print(f"[AVERT.] {titre} : {texte}")
 
 
-def message_info(titre: str, texte: str) -> None:
-    """Affiche une boîte d'information Qt ou imprime en console."""
+def message_info(titre: str, texte: str, parent=None) -> None:
+    """Affiche une boîte d'information Qt ou imprime en console.
+
+    parent : widget Qt parent — si fourni, la boîte est centrée sur ce widget.
+    """
     if FREECAD_DISPONIBLE:
-        QtWidgets.QMessageBox.information(None, titre, texte)
+        QtWidgets.QMessageBox.information(parent, titre, texte)
     else:
         print(f"[INFO]  {titre} : {texte}")
 

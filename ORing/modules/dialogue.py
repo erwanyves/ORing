@@ -2029,9 +2029,24 @@ class DialogueORing(QtWidgets.QDialog):
             if position == 'arbre':
                 d_alesage_calc = d_gorge_new + 2.0 * jeu_mm
             else:
+                # Gorge dans l'alésage : d_gorge_new = Ø alésage (inchangé),
+                # d_comp_new = Ø arbre (mis à jour).
+                # Le jeu réel a changé si l'arbre a changé → le recalculer
+                # pour que calculer_gorge dérive le bon D_arbre.
                 d_alesage_calc = d_gorge_new
+                _jeu_reel = (d_gorge_new - d_comp_new) / 2.0
+                if _jeu_reel >= 0.0:
+                    # Jeu positif : l'arbre est plus petit que l'alésage (normal)
+                    jeu_mm = round(_jeu_reel, 4)
+                    print(f"[ORing lies]   jeu recalculé pour gorge alésage : {jeu_mm:.4f} mm "
+                          f"(Ø_al={d_gorge_new:.3f}  Ø_arbre={d_comp_new:.3f})")
+                else:
+                    # Jeu négatif : incohérence (arbre > alésage) — garder le jeu stocké
+                    print(f"[ORing lies]   AVERT jeu négatif ({_jeu_reel:.4f}) — "
+                          f"jeu stocké conservé ({jeu_mm:.4f})")
 
-            print(f"[ORing lies]   d_gorge={d_gorge_new:.3f}  d_alesage_calc={d_alesage_calc:.3f}  d_comp={d_comp_new:.3f}")
+            print(f"[ORing lies]   d_gorge={d_gorge_new:.3f}  d_alesage_calc={d_alesage_calc:.3f}  "
+                  f"d_comp={d_comp_new:.3f}  jeu={jeu_mm:.4f}")
 
             try:
                 # 1er essai : série mémorisée
@@ -2246,6 +2261,7 @@ class DialogueORing(QtWidgets.QDialog):
                 meta_new['d2_mm']            = float(r_new.d2)           if r_new.d2           else meta.get('d2_mm', 0.0)
                 meta_new['d_comp_ref_mm']    = d_comp_new
                 meta_new['d_gorge_ref_mm']   = d_gorge_new               # Ø courant body gorge
+                meta_new['jeu_radial_mm']    = jeu_mm                    # jeu recalculé si bore joint
                 meta_new['h_mm']             = float(r_new.h)            if r_new.h            else 0.0
                 meta_new['b_mm']             = float(r_new.b)            if r_new.b            else 0.0
                 meta_new['d1_mm']            = float(r_new.d1)           if r_new.d1           else 0.0
@@ -2274,6 +2290,14 @@ class DialogueORing(QtWidgets.QDialog):
                         doc, part, _bg, meta.get('position', 'arbre'))
             except Exception as _e_ct:
                 print(f"[ORing lies]   conteneur : {_e_ct}")
+
+            # Rafraîchissement visuel après chaque joint lié
+            # → l'utilisateur voit la progression en 3D
+            try:
+                import FreeCADGui as _Gui
+                _Gui.updateGui()
+            except Exception:
+                pass
 
         # Commit de la transaction
         try:
@@ -3294,7 +3318,35 @@ class DialogueORing(QtWidgets.QDialog):
     # ------------------------------------------------------------------
     # Action : Calculer
     # ------------------------------------------------------------------
-    def _on_calculer(self):
+    def _on_calculer(self, _force=False):
+        """Calcul principal — protégé par debounce QTimer (100ms).
+
+        Les signaux Qt (valueChanged, currentIndexChanged) déclenchent
+        _on_calculer plusieurs fois de suite lors d'une mise à jour groupée
+        de l'UI. Le QTimer regroupe ces appels en un seul calcul effectif
+        50ms après le dernier signal reçu.
+        _force=True : contourner le debounce (appel direct, ex. Appliquer).
+        """
+        if not _force:
+            # Annuler le timer précédent et le relancer — seul le dernier
+            # déclenchement (après 50ms de silence) lance le vrai calcul.
+            if not hasattr(self, '_timer_calcul'):
+                from PySide2.QtCore import QTimer
+                self._timer_calcul = QTimer(self)
+                self._timer_calcul.setSingleShot(True)
+                self._timer_calcul.timeout.connect(lambda: self._on_calculer(_force=True))
+            self._timer_calcul.start(50)
+            return
+
+        if self._calcul_en_cours:
+            return
+        self._calcul_en_cours = True
+        try:
+            self._on_calculer_interne()
+        finally:
+            self._calcul_en_cours = False
+
+    def _on_calculer_interne(self):
         diametre = self._get_diametre_calcul()
         if diametre <= 0:
             return   # saisie incomplète — pas de message d'erreur
@@ -3934,6 +3986,20 @@ class DialogueORing(QtWidgets.QDialog):
             # ── Message de succès ────────────────────────────────────────
             if self._part_en_modification is not None:
                 msg_titre = "ORing — Modification appliquée"
+                # Vérifier si des erreurs TNP persistent
+                _tnp_warn = ''
+                try:
+                    from .metadata import lire_metadonnees as _lmn2
+                    _m2 = _lmn2(self._part_en_modification)
+                    _tnp_feats = _m2.get('_tnp_erreurs', [])
+                    if _tnp_feats:
+                        _tnp_warn = (
+                            f"\n\n⚠  Références d'arêtes perdues (TNP) :\n"
+                            f"   {', '.join(_tnp_feats)}\n"
+                            f"   → Corriger manuellement dans FreeCAD."
+                        )
+                except Exception:
+                    pass
                 msg_corps = (
                     f"Gorge et joint 3D mis à jour avec succès.\n\n"
                     f"  Standard / Série  : {self.combo_standard.currentData()} "
@@ -3946,6 +4012,7 @@ class DialogueORing(QtWidgets.QDialog):
                     f"  D pièce principale     : {d_princ:.3f} mm\n"
                     f"  D pièce complémentaire : {d_compl:.3f} mm\n"
                     f"  Jeu radial             : {jeu:.3f} mm"
+                    + _tnp_warn
                 )
                 self._annuler_mode_modification()   # reset titre + bouton
                 # _d_gorge_ref_avant_modif capturé depuis meta_existante
@@ -3976,6 +4043,11 @@ class DialogueORing(QtWidgets.QDialog):
                     self._dernier_radio_rayon = (
                         self.widget_piece_principale.radio_rayon.isChecked()
                     )
+                # Mémoriser le label du body gorge pour restaurer le body
+                # actif à la fermeture du dialogue
+                _body_sel = self.widget_piece_principale.combo_body.currentData()
+                if _body_sel:
+                    self._dernier_body_gorge_label = _body_sel
             except Exception:
                 pass
 
@@ -3985,7 +4057,7 @@ class DialogueORing(QtWidgets.QDialog):
             # ── Afficher le message IMMÉDIATEMENT ────────────────────────────
             # Les tâches lourdes (_maj_joints_lies, _onglet_initial) sont
             # différées via QTimer pour ne pas bloquer l'affichage.
-            message_info(msg_titre, msg_corps)
+            message_info(msg_titre, msg_corps, parent=self)
 
             # ── Tâches post-confirmation (différées) ──────────────────────
             def _post_confirmation():
@@ -4043,17 +4115,76 @@ class DialogueORing(QtWidgets.QDialog):
             import traceback
             message_erreur("ORing — Erreur generation", traceback.format_exc())
 
+    @staticmethod
+    def _restaurer_body_actif(doc, body_label=None):
+        """Restaure le body gorge comme body actif dans FreeCAD après fermeture
+        du dialogue. Sans cette restauration, FreeCAD laisse le body ORing
+        (ou aucun body) actif, ce qui empêche les opérations PartDesign
+        suivantes (Fillet, Chamfer…) de s'afficher correctement.
+        """
+        try:
+            import FreeCADGui as Gui
+            if not (hasattr(Gui, 'ActiveDocument') and Gui.ActiveDocument):
+                return
+            view = Gui.ActiveDocument.ActiveView
+            # Chercher le body gorge par label
+            body_gorge = None
+            if body_label:
+                for obj in doc.Objects:
+                    if (obj.TypeId == 'PartDesign::Body'
+                            and obj.Label == body_label):
+                        body_gorge = obj
+                        break
+            # Désactiver tout body ORing actif et activer le body gorge
+            view.setActiveObject('pdbody', body_gorge)
+            if body_gorge:
+                print(f"[ORing] Body actif restauré : '{body_gorge.Label}'")
+            else:
+                view.setActiveObject('pdbody', None)
+                print("[ORing] Body actif réinitialisé (aucun body gorge trouvé)")
+        except Exception as _e:
+            print(f"[ORing] Restauration body actif : {_e}")
+
+    @staticmethod
+    def _maj_techdraw(doc):
+        """Rafraîchit toutes les pages TechDraw du document.
+        Appelé uniquement à la fermeture du dialogue pour ne pas ralentir
+        les recomputes intermédiaires de la macro.
+        """
+        try:
+            pages = [obj for obj in doc.Objects
+                     if getattr(obj, 'TypeId', '') == 'TechDraw::DrawPage']
+            if not pages:
+                return
+            for page in pages:
+                try:
+                    page.touch()
+                except Exception:
+                    pass
+            doc.recompute()
+            print(f"[ORing] TechDraw : {len(pages)} page(s) mises à jour")
+        except Exception as e:
+            print(f"[ORing] TechDraw maj : {e}")
+
     def closeEvent(self, event):
         """Restaure exactement l'état visuel d'origine avant fermeture."""
         _restaurer_snapshot(self._doc)
         if hasattr(self, 'table_joints'):
             self.table_joints._locked_row = -1
             self.table_joints._hover_row  = -1
+        # Restaurer le body gorge comme body actif AVANT TechDraw
+        # (évite le bug "Fillet dialog n'apparaît pas" après la macro)
+        _label = getattr(self, '_dernier_body_gorge_label', None)
+        self._restaurer_body_actif(self._doc, _label)
+        self._maj_techdraw(self._doc)
         super().closeEvent(event)
 
     def reject(self):
         """Fermeture par Échap ou bouton Fermer."""
         _restaurer_snapshot(self._doc)
+        _label = getattr(self, '_dernier_body_gorge_label', None)
+        self._restaurer_body_actif(self._doc, _label)
+        self._maj_techdraw(self._doc)
         super().reject()
 
     def get_resultat(self):
@@ -4095,6 +4226,275 @@ def _set_contrainte(sketch, prefixe: str, valeur, en_degres: bool = False) -> bo
     except Exception as e:
         print(f"[ORing modif] setDatum '{prefixe}' EXCEPTION : {e}")
     return False
+
+
+# =============================================================================
+# TNP — Snapshot et restauration des arêtes d'habillage
+# =============================================================================
+
+def _est_en_erreur(obj):
+    """Retourne True si une feature FreeCAD est dans un état Invalid ou Error."""
+    _state = getattr(obj, 'State', [])
+    if isinstance(_state, (list, tuple)):
+        return any('Invalid' in str(s) or 'Error' in str(s) for s in _state)
+    return 'Invalid' in str(_state) or 'Error' in str(_state)
+
+
+#: Types de features d'habillage susceptibles de perdre leurs références TNP
+_TYPES_HABILLAGE = frozenset({
+    'PartDesign::Chamfer',
+    'PartDesign::Fillet',
+    'PartDesign::Draft',
+    'PartDesign::RoundedCorners',
+    'PartDesign::Thickness',
+})
+
+
+def _empreinte_arete(edge):
+    """
+    Calcule une empreinte géométrique d'une arête pour identification
+    après changement de topologie.
+
+    Retourne un dict avec les clés stables :
+      - 'com'    : centre de masse (x, y, z) arrondi à 3 décimales
+      - 'length' : longueur arrondie à 3 décimales
+      - 'type'   : 'Circle' | 'Line' | 'Other'
+      - 'radius' : rayon (si Circle), arrondi à 3 décimales
+      - 'axis'   : direction de l'axe (si Circle), arrondi à 3 décimales
+    """
+    import math
+    try:
+        com = edge.CenterOfMass
+        com_r = (round(com.x, 3), round(com.y, 3), round(com.z, 3))
+        length = round(edge.Length, 3)
+        curve = edge.Curve
+        curve_type = type(curve).__name__
+
+        result = {'com': com_r, 'length': length, 'type': curve_type}
+
+        if curve_type == 'Circle':
+            result['radius'] = round(curve.Radius, 3)
+            ax = curve.Axis
+            result['axis'] = (round(ax.x, 3), round(ax.y, 3), round(ax.z, 3))
+        elif curve_type == 'Line':
+            p1 = edge.firstVertex().Point
+            p2 = edge.lastVertex().Point
+            result['p1'] = (round(p1.x, 3), round(p1.y, 3), round(p1.z, 3))
+            result['p2'] = (round(p2.x, 3), round(p2.y, 3), round(p2.z, 3))
+
+        return result
+    except Exception:
+        return None
+
+
+def _empreintes_compatibles(e1, e2, tol=0.5):
+    """
+    Compare deux empreintes d'arêtes. Retourne (score, True/False).
+    score = 0..100, True si correspondance probable.
+    tol = tolérance en mm sur les positions.
+    """
+    if e1 is None or e2 is None:
+        return 0, False
+    if e1['type'] != e2['type']:
+        return 0, False
+
+    def dist3(a, b):
+        import math
+        return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
+
+    score = 0
+    # Centre de masse proche
+    d_com = dist3(e1['com'], e2['com'])
+    if d_com > tol * 10:
+        return 0, False
+    score += max(0, 40 - int(d_com / tol * 10))
+
+    # Longueur proche
+    dl = abs(e1['length'] - e2['length'])
+    if dl > tol * 5:
+        return score, False
+    score += max(0, 30 - int(dl / tol * 6))
+
+    if e1['type'] == 'Circle':
+        dr = abs(e1.get('radius', 0) - e2.get('radius', 0))
+        if dr > tol:
+            return score, False
+        score += max(0, 30 - int(dr / tol * 15))
+    elif e1['type'] == 'Line':
+        d1 = dist3(e1.get('p1', (0, 0, 0)), e2.get('p1', (0, 0, 0)))
+        d2 = dist3(e1.get('p2', (0, 0, 0)), e2.get('p2', (0, 0, 0)))
+        if min(d1, d2) > tol * 5:
+            return score, False
+        score += max(0, 30 - int(min(d1, d2) / tol * 6))
+    else:
+        score += 15
+
+    return score, score >= 30
+
+
+def _suspendre_habillage(body):
+    """
+    Suspend (Suppressed=True) toutes les features d'habillage du body
+    AVANT le recompute de la gorge, pour éviter qu'elles ne plantent
+    sur des arêtes devenues invalides après la modification topologique.
+
+    Retourne la liste des features suspendues (pour les réactiver ensuite).
+    La liste inclut aussi l'empreinte des arêtes référencées pour le
+    fallback de remapping géométrique si la réactivation échoue.
+    """
+    suspendues = []
+    for obj in getattr(body, 'Group', []):
+        if getattr(obj, 'TypeId', '') not in _TYPES_HABILLAGE:
+            continue
+        try:
+            # Vérifier si la feature supporte Suppressed
+            if not hasattr(obj, 'Suppressed'):
+                continue
+
+            # Capturer l'empreinte des arêtes AVANT suspension
+            base_prop = getattr(obj, 'Base', None)
+            edges_snap = []
+            if isinstance(base_prop, (list, tuple)) and len(base_prop) == 2:
+                base_feat, edge_names = base_prop
+                if hasattr(base_feat, 'Shape') and base_feat.Shape is not None:
+                    for ename in edge_names:
+                        try:
+                            idx = int(ename.replace('Edge', '')) - 1
+                            edge = base_feat.Shape.Edges[idx]
+                            edges_snap.append({
+                                'nom':       ename,
+                                'empreinte': _empreinte_arete(edge)
+                            })
+                        except Exception:
+                            edges_snap.append({'nom': ename, 'empreinte': None})
+
+            # Suspendre la feature
+            deja_suspendue = bool(obj.Suppressed)
+            if not deja_suspendue:
+                obj.Suppressed = True
+            noms = [e['nom'] for e in edges_snap]
+            print(f"[ORing TNP] Suspension '{obj.Label}' "
+                  f"({obj.TypeId.split('::')[1]}) → {noms}")
+            suspendues.append({
+                'feature':       obj,
+                'base_prop':     base_prop,
+                'edges':         edges_snap,
+                'deja_suspendue': deja_suspendue,
+            })
+        except Exception as _e:
+            print(f"[ORing TNP] Suspension '{getattr(obj,'Label','')}' : {_e}")
+
+    return suspendues
+
+
+def _snapshot_habillage(body):
+    """Alias conservé pour compatibilité — délègue à _suspendre_habillage."""
+    return _suspendre_habillage(body)
+
+
+def _restaurer_habillage(doc, body, suspendues):
+    """
+    Réactive les features d'habillage suspendues sur la géométrie stable.
+
+    Stratégie :
+      1. Réactiver (Suppressed=False) + recompute → le TNP fix natif de
+         FreeCAD 1.0 remappe les arêtes sur la géométrie déjà calculée.
+      2. Si la feature est encore en erreur → fallback remapping géométrique
+         par empreinte (centre de masse, longueur, rayon).
+      3. Si le fallback échoue → la feature est resuspended et signalée.
+    """
+    if not suspendues:
+        return []
+
+    _encore_erreur = []
+
+    for snap in suspendues:
+        feat          = snap['feature']
+        deja_suspendue = snap.get('deja_suspendue', False)
+
+        if deja_suspendue:
+            # Feature était déjà suspendue avant → ne pas la réactiver
+            continue
+
+        # ── Étape 1 : réactivation + TNP fix natif ───────────────────────
+        try:
+            feat.Suppressed = False
+            feat.touch()
+            doc.recompute()
+        except Exception as _e:
+            print(f"[ORing TNP] Réactivation '{feat.Label}' : {_e}")
+            _encore_erreur.append(feat.Label)
+            continue
+
+        if not _est_en_erreur(feat):
+            print(f"[ORing TNP] ✓ '{feat.Label}' réactivé (TNP fix natif)")
+            continue
+
+        # ── Étape 2 : fallback remapping géométrique ─────────────────────
+        print(f"[ORing TNP] '{feat.Label}' toujours en erreur "
+              f"→ remapping géométrique")
+        base_prop = snap.get('base_prop')
+        edges_snap = snap.get('edges', [])
+
+        if not edges_snap or not isinstance(base_prop, (list, tuple)):
+            _encore_erreur.append(feat.Label)
+            continue
+
+        base_feat = base_prop[0]
+        try:
+            new_shape = getattr(base_feat, 'Shape', None)
+            if new_shape is None or not new_shape.Edges:
+                _encore_erreur.append(feat.Label)
+                continue
+
+            new_empreintes = [
+                {'nom': f'Edge{i+1}', 'empreinte': _empreinte_arete(e)}
+                for i, e in enumerate(new_shape.Edges)
+            ]
+
+            nouveaux_noms = []
+            for edge_snap in edges_snap:
+                emp_ref = edge_snap['empreinte']
+                if emp_ref is None:
+                    nouveaux_noms.append(edge_snap['nom'])
+                    continue
+                meilleur_score, meilleur_nom = -1, None
+                for ne in new_empreintes:
+                    score, ok = _empreintes_compatibles(emp_ref, ne['empreinte'])
+                    if ok and score > meilleur_score:
+                        meilleur_score, meilleur_nom = score, ne['nom']
+                if meilleur_nom:
+                    print(f"[ORing TNP]   {edge_snap['nom']} → {meilleur_nom} "
+                          f"(score={meilleur_score})")
+                    nouveaux_noms.append(meilleur_nom)
+                else:
+                    print(f"[ORing TNP]   {edge_snap['nom']} → pas de correspondance")
+                    nouveaux_noms.append(edge_snap['nom'])
+
+            feat.Base = (base_feat, nouveaux_noms)
+            feat.touch()
+            doc.recompute()
+
+            if not _est_en_erreur(feat):
+                print(f"[ORing TNP] ✓ '{feat.Label}' restauré par remapping")
+            else:
+                print(f"[ORing TNP] ⚠ '{feat.Label}' non récupéré "
+                      f"→ resuspendu")
+                feat.Suppressed = True
+                doc.recompute()
+                _encore_erreur.append(feat.Label)
+
+        except Exception as _eg:
+            print(f"[ORing TNP] '{feat.Label}' remapping : {_eg}")
+            try:
+                feat.Suppressed = True
+                doc.recompute()
+            except Exception:
+                pass
+            _encore_erreur.append(feat.Label)
+
+    return _encore_erreur
+
 
 
 def _maj_tore_inplace(doc, body_oring, r, position: str) -> bool:
@@ -4306,6 +4706,14 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                         features_liees.append(obj)
                         break
 
+        # ── Suspension TNP : suspendre les features d'habillage AVANT recompute ──
+        # Cela évite qu'elles ne plantent sur des arêtes invalides pendant
+        # la modification de gorge. Elles seront réactivées après, sur
+        # une géométrie stable.
+        _tnp_suspendues = _suspendre_habillage(body_gorge_obj) if body_gorge_obj else []
+        if _tnp_suspendues:
+            doc.recompute()  # Valider la suspension avant de modifier la gorge
+
         # Fallback : si features_liees toujours vide, chercher tout Groove/Mirrored
         # appartenant au même body (cas où Profile est stocké différemment).
         if not features_liees and body_gorge_obj is not None:
@@ -4503,13 +4911,32 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
             feat.touch()
         if body_gorge_obj is not None:
             body_gorge_obj.touch()
-        # Recompute global obligatoire : le Groove et le Mirrored
-        # doivent se propager depuis le sketch. Un recompute sélectif
-        # [body_gorge_obj] ne propage pas aux features en aval.
         doc.recompute()
         print(f"[ORing modif GORGE]   recompute() effectué  "
               f"(sens={'agrandissement' if (grossit if position=='arbre' else grossit) else 'rétrécissement'})  "
               f"durée={_t.time()-_t0_recompute:.2f}s")
+
+        # ── TNP recovery : remapping géométrique des arêtes d'habillage ────────
+        # Stratégie :
+        #   1. Passe 1 : simple touch + recompute (FreeCAD TNP fix auto)
+        #   2. Passe 2 : si encore en erreur → remapping géométrique par empreinte
+        #      (centre de masse, longueur, rayon) comparée au snapshot pré-recompute
+        if body_gorge_obj is not None:
+            # Réactivation des features suspendues sur géométrie stable
+            # + fallback remapping géométrique si la réactivation échoue
+            _encore_erreur = _restaurer_habillage(
+                doc, body_gorge_obj, _tnp_suspendues)
+
+            if _encore_erreur:
+                print(f"[ORing TNP] ⚠ {len(_encore_erreur)} feature(s) non récupérée(s) "
+                      f"(resuspendues — correction manuelle requise) : "
+                      f"{_encore_erreur}")
+                meta_existante['_tnp_erreurs'] = _encore_erreur
+            else:
+                if _tnp_suspendues:
+                    print(f"[ORing TNP] ✓ {len(_tnp_suspendues)} feature(s) "
+                          f"réactivée(s) avec succès")
+                meta_existante.pop('_tnp_erreurs', None)
 
         # Mémoriser pour éviter le fallback aux prochaines modifications
         if not nom_sketch_gorge:

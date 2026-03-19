@@ -1,34 +1,38 @@
-# ORing — O-Ring & Groove Macro for FreeCAD
+# ORing — O-Ring Groove Macro for FreeCAD
 
 [![License: LGPL v2.1](https://img.shields.io/badge/License-LGPL_v2.1-blue.svg)](https://www.gnu.org/licenses/lgpl-2.1)
 [![FreeCAD](https://img.shields.io/badge/FreeCAD-1.0+-orange.svg)](https://www.freecad.org)
 [![Python](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org)
+[![Version](https://img.shields.io/badge/version-2.1-green.svg)]()
 
 A parametric FreeCAD macro for designing, inserting, and managing O-ring groove assemblies according to international standards.
 
 **Supported standards:** ISO 3601 · DIN 3771 · JIS B2401 · METRIC  
-**Author:** Yves Guillou · **Version:** 2.0 · **License:** LGPL v2.1
+**Author:** Yves Guillou · **Version:** 2.1 · **License:** LGPL v2.1
 
 ---
 
 ## Features
 
-- **Standards-compliant groove sizing** — depth, width and fillets calculated per ISO 3601, DIN 3771, JIS B2401 and METRIC series
-- **Automatic FreeCAD geometry** — generates the groove sketch, PartDesign Groove and Mirrored operations
-- **3D torus body** — oblong cross-section that preserves the O-ring volume at installation
+- **Standards-compliant groove sizing** — depth, width and fillets per ISO 3601, DIN 3771, JIS B2401 and METRIC
+- **Automatic FreeCAD geometry** — groove sketch, PartDesign Groove and Mirrored operations
+- **3D torus body** — oblong cross-section preserving O-ring volume at installation, updated in-place
 - **4 installation types** — static, dynamic translation, dynamic rotation, face seal
 - **Groove on shaft and groove in bore** configurations
-- **Parametric drift detection** — automatically detects when dimensions have changed and updates linked assemblies
-- **UUID-based identification** — each assembly has an immutable identifier, rename-proof
-- **Material color coding** — NBR, FKM, EPDM, VMQ, FFKM, PTFE with distinct colors in the 3D view
-- **ISO 286-1 fit system** — optional H/g and H/f clearance modes replacing manual radial clearance input
+- **Parametric drift detection** — automatically detects dimension changes and updates linked assemblies
+- **UUID-based identification** — immutable identifier per assembly, rename-proof
+- **Material color coding** — NBR, FKM, EPDM, VMQ, FFKM, PTFE with distinct 3D colors
+- **ISO 286-1 fit system** — optional H/g and H/f clearance modes
+- **Automatic TNP recovery** — dress-up features (Chamfer, Fillet, Draft) suspended before groove recompute and reactivated after
+- **TechDraw synchronization** — all drawing pages refreshed automatically on dialog close
+- **Active body restoration** — main part body restored as active on close (fixes post-macro PartDesign dialogs)
 
 ---
 
 ## Requirements
 
 - **FreeCAD 1.0 or later** with PartDesign and Sketcher workbenches  
-  *(The TNP fix in FreeCAD 1.0 is required for correct parametric updates)*
+  *(The TNP fix in FreeCAD 1.0 is required for correct parametric updates and dress-up feature recovery)*
 - Python 3.x (bundled with FreeCAD)
 - PySide2 (bundled with FreeCAD)
 
@@ -68,11 +72,8 @@ Macro/
 
 ## Document prerequisites
 
-For the macro to work, your FreeCAD document must contain:
-
 **Body carrying the groove (shaft or bore body)**
-- At least one **LCS** (Local Coordinate System / `PartDesign::CoordinateSystem`)  
-  The Z-axis of the LCS defines the revolution axis; its XZ plane is the groove mid-plane
+- At least one **LCS** (`PartDesign::CoordinateSystem`) — Z-axis = revolution axis, XZ plane = groove mid-plane
 - At least one **named parameter** (sketch constraint or Spreadsheet alias) for the diameter or radius
 
 **Complementary body**
@@ -80,15 +81,11 @@ For the macro to work, your FreeCAD document must contain:
 
 ### Parameter naming convention
 
-The macro auto-detects whether a parameter is a radius or diameter from its first letter:
-
 | First letter | Interpreted as |
 |---|---|
 | `R` or `r` | Radius |
 | `D` or `d` | Diameter |
 | Other | Manual selection required |
-
-> Internal groove sketch parameters (`RayonGorge`, `FilletHautGorge`, `depouille`, etc.) are automatically excluded from the selection list.
 
 ---
 
@@ -96,15 +93,33 @@ The macro auto-detects whether a parameter is a radius or diameter from its firs
 
 1. Open your FreeCAD document with shaft and bore bodies
 2. Run the macro
-3. **Tab 1** — select position (groove on shaft / in bore), enter pressure, temperature and installation type
-4. **Tab 2** — select bodies, parameters, LCS, series, material → click **Calculate**
-5. Review results (squeeze %, fill %, alerts) → click **Apply in FreeCAD**
+3. **Tab 1** — select position, pressure, temperature, installation type
+4. **Tab 2** — select bodies, parameters, LCS, series, material → **Calculate**
+5. Review results (squeeze %, fill %, alerts) → **Apply in FreeCAD**
 
-The macro will:
-- Update the shaft/bore diameter parameter
-- Generate the groove sketch and PartDesign operations
-- Create the 3D torus body
-- Group everything in an `App::Part` container
+On close, the macro automatically:
+- Restores the groove body as the active FreeCAD body
+- Refreshes all TechDraw pages
+
+---
+
+## Modifying an existing assembly
+
+**Tab 3** → double-click any row → modification mode.
+
+| Change | Behavior |
+|---|---|
+| Series only | Groove and torus updated in-place (~0.3s) |
+| Diameter | Both part parameters updated; linked assemblies auto-updated with 3D progress feedback |
+| Groove-in-bore linked assembly | Radial clearance recalculated dynamically from current diameters |
+
+### Automatic TNP recovery
+
+When a groove is modified, dress-up features (Chamfer, Fillet, Draft) are automatically:
+1. **Suspended** before the groove recompute → no crash on invalidated edges
+2. **Reactivated** on stable geometry → FreeCAD 1.0 TNP fix remaps edge references
+3. If reactivation fails → **geometric fingerprint remapping** (centre of mass, length, radius)
+4. If remapping fails → feature **re-suspended** and flagged **⚠** in the result message
 
 ---
 
@@ -116,32 +131,6 @@ App::Part  "Equipped Shaft"
 └── App::Part  "OJ-20260316-xxxx"   ← O-ring container (one per groove)
     └── PartDesign::Body  "ORing"   ← 3D torus body
 ```
-
----
-
-## Modifying an existing assembly
-
-Open the macro on the document → **Tab 3** lists all assemblies.  
-Double-click any row to enter modification mode.
-
-**What can be changed:**
-- Material, installation type, pressure, temperature
-- Standard, series, target squeeze
-- Radial clearance / ISO fit mode
-- Diameter/Radius radio button (correctable even in modification mode)
-
-**What is locked:**
-- Position, LCS, body and parameter selection
-
-When the diameter changes, linked assemblies on the same body are **automatically updated**. The macro preserves the series where possible, searching for the nearest compatible series before falling back to Auto mode.
-
----
-
-## Drift detection
-
-Every time the dialog opens, the macro compares stored reference diameters against current FreeCAD parameter values. Assemblies with a mismatch > 0.001 mm are flagged as **drifted** (⚠ indicator on Tab 3).
-
-Double-click a drifted assembly → the macro proposes a recalculation with the detected new diameter.
 
 ---
 
@@ -164,6 +153,19 @@ Double-click a drifted assembly → the macro proposes a recalculation with the 
 
 ---
 
+## What's new in v2.1
+
+- **In-place torus update** — no delete/recreate; ~0.3s per O-ring vs 1–4s previously
+- **Calculation debounce** — 50ms QTimer groups cascading Qt signals; one calculation per user action
+- **Automatic TNP recovery** — dress-up features suspended/reactivated around groove recompute with geometric fingerprint fallback
+- **Groove-in-bore clearance fix** — radial clearance dynamically recalculated when shaft diameter changes
+- **Active body restoration** — groove body restored as active on close (fixes Fillet/Chamfer dialog issue)
+- **TechDraw auto-sync** — all drawing pages refreshed on dialog close
+- **3D progress feedback** — `Gui.updateGui()` after each linked assembly update
+- **Centered result dialog** — success message centered on the sizing window
+
+---
+
 ## Documentation
 
 - 📄 [User guide (English)](docs/Guide_Macro_ORing_EN.docx)
@@ -173,7 +175,7 @@ Double-click a drifted assembly → the macro proposes a recalculation with the 
 
 ## License
 
-This project is licensed under the **GNU Lesser General Public License v2.1**.  
+Licensed under the **GNU Lesser General Public License v2.1**.  
 See the [LICENSE](LICENSE) file for details.
 
 ---
