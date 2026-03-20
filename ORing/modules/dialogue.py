@@ -1850,7 +1850,8 @@ class DialogueORing(QtWidgets.QDialog):
                 derive_msg
             )
 
-    def _maj_joints_lies(self, body_modifie_label: str):
+    def _maj_joints_lies(self, body_modifie_label: str,
+                         dlg_progression=None):
         """
         Après modification d'un joint, met à jour automatiquement tous les
         autres joints du document qui partagent le même body (gorge ou comp)
@@ -1913,6 +1914,24 @@ class DialogueORing(QtWidgets.QDialog):
         print(f"[ORing lies] série joint modifié='{_serie_joint_modifie}'  "
               f"tous_meme_serie={_tous_meme_serie}")
 
+        # Pré-calculer le nombre de joints qui seront effectivement traités
+        # (ceux qui partagent le body modifié) pour afficher 1/N puis 2/N
+        def _partage_body(meta_d):
+            _bm = ''
+            for _o in doc.Objects:
+                if (_o.TypeId == 'PartDesign::Body'
+                        and _o.Label == body_modifie_label):
+                    _bm = _o.Name
+                    break
+            if _bm:
+                return _bm in (meta_d.get('body_gorge_name',''),
+                               meta_d.get('body_comp_name',''))
+            return (meta_d.get('body_gorge_label') == body_modifie_label
+                    or meta_d.get('body_comp_label')  == body_modifie_label)
+
+        _n_total_joints = sum(1 for _d in derives if _partage_body(_d['meta']))
+        _n_joint_courant = 0  # incrémenté au début de chaque joint traité
+
         for d in derives:
             part = d['part']
             meta = d['meta']
@@ -1946,8 +1965,25 @@ class DialogueORing(QtWidgets.QDialog):
                 continue
 
             _t_joint = _time.time()
+            _n_joint_courant += 1
+            _label_joint = getattr(part, 'Label', part.Name)
             print(f"[ORing lies]   Mise à jour automatique : '{part.Name}' "
                   f"(uuid={getattr(part, 'uuid_joint', '?')})")
+
+            # Mettre à jour le texte du dialogue de progression
+            if dlg_progression is not None:
+                try:
+                    from PySide2.QtWidgets import QApplication
+                    from PySide2.QtCore    import QEventLoop
+                    dlg_progression.setText(
+                        f"Mise à jour des joints liés en cours…\n\n"
+                        f"Joint {_n_joint_courant}/{_n_total_joints} : {_label_joint}"
+                    )
+                    QApplication.processEvents(
+                        QEventLoop.ExcludeUserInputEvents
+                        | QEventLoop.ExcludeSocketNotifiers)
+                except Exception:
+                    pass
 
             position      = meta.get('position', 'arbre')
             jeu_mm        = float(meta.get('jeu_radial_mm', 0.0))
@@ -2157,21 +2193,32 @@ class DialogueORing(QtWidgets.QDialog):
                     #    → chercher d'abord d2 supérieur ≥ d2_orig, puis inférieur
                     if _r_proche is None and _std and _d2_orig:
                         try:
-                            _sup = []  # d2 >= d2_orig, tri croissant
-                            _inf = []  # d2 < d2_orig, tri décroissant (le plus proche d'abord)
+                            _sup = []  # d2 >= d2_orig
+                            _inf = []  # d2 < d2_orig
                             for _s in liste_series(_std):
                                 if _s == _serie_orig:
                                     continue
                                 try:
                                     _d2_s = _get_serie(_std, _s).get('d2_nominal', 0)
                                     if _d2_s >= _d2_orig:
-                                        _sup.append((_d2_s - _d2_orig, _s))
+                                        _sup.append((_d2_s, _s))
                                     else:
-                                        _inf.append((_d2_orig - _d2_s, _s))
+                                        _inf.append((_d2_s, _s))
                                 except Exception:
                                     pass
-                            _sup.sort(); _inf.sort()
+                            # Priorité au plus gros d2 compatible (meilleure étanchéité)
+                            _sup.sort(key=lambda x: -x[0])  # décroissant
+                            _inf.sort(key=lambda x: -x[0])  # décroissant
                             _candidats_ordonnes = [s for _, s in _sup] + [s for _, s in _inf]
+                            # Paramètres de sélectionnabilité (même logique que le combo UI)
+                            try:
+                                from .joints import _params_calcul as _pc2
+                                _st2 = _pc2()['stretch']
+                                _BLOQUANT2  = _st2['arbre']['max_bloquant']
+                                _COMPR_MAX2 = _st2['alesage']['compression_max']
+                            except Exception:
+                                _BLOQUANT2, _COMPR_MAX2 = 8.0, 3.0
+
                             for _s_cand in _candidats_ordonnes:
                                 _r_cand = calculer_gorge(
                                     diametre_piece_mm = d_alesage_calc,
@@ -2186,13 +2233,42 @@ class DialogueORing(QtWidgets.QDialog):
                                     squeeze_cible_pct = float(meta.get('squeeze_cible_pct', 0.0)),
                                     jeu_radial_mm     = jeu_mm,
                                 )
-                                if _r_cand.valide and _r_cand.squeeze_pct is not None:
-                                    _sq = float(_r_cand.squeeze_pct)
-                                    if 5.0 <= _sq <= 35.0:
-                                        _r_proche = _r_cand
-                                        print(f"[ORing lies]   série proche retenue : '{_s_cand}' "
-                                              f"(d2={float(_r_cand.d2):.2f}mm, sq={_sq:.1f}%)")
-                                        break
+                                if not (_r_cand.valide and _r_cand.squeeze_pct is not None):
+                                    continue
+                                _sq = float(_r_cand.squeeze_pct)
+                                if not (5.0 <= _sq <= 35.0):
+                                    continue
+
+                                # Vérifier la sélectionnabilité : même critère que
+                                # le combo UI (_rafraichir_combo_serie) — stretch/compression
+                                _cand_ok = True
+                                try:
+                                    from .joints import choisir_d1 as _cd1
+                                    # D_fond = D_arbre − 2×h pour gorge arbre
+                                    _h_c = float(_r_cand.h) if _r_cand.h else 0.0
+                                    _d_arbre_c = d_alesage_calc - 2.0 * jeu_mm
+                                    if position == 'arbre':
+                                        _d_ref_c = max(0.0, _d_arbre_c - 2.0 * _h_c)
+                                    else:
+                                        _d_ref_c = _d_arbre_c
+                                    if _d_ref_c > 0:
+                                        _res_d1 = _cd1(_std, _s_cand, _d_ref_c, position)
+                                        _sp = _res_d1.get('stretch_pct', 0.0)
+                                        if position == 'arbre':
+                                            _cand_ok = -0.5 <= _sp <= _BLOQUANT2
+                                        else:
+                                            _cand_ok = -_COMPR_MAX2 <= _sp <= 0.5
+                                except Exception:
+                                    pass  # En cas d'erreur, accepter (fallback)
+
+                                if _cand_ok:
+                                    _r_proche = _r_cand
+                                    print(f"[ORing lies]   série proche retenue : '{_s_cand}' "
+                                          f"(d2={float(_r_cand.d2):.2f}mm, sq={_sq:.1f}%)")
+                                    break
+                                else:
+                                    print(f"[ORing lies]   '{_s_cand}' rejetée "
+                                          f"(d2={float(_r_cand.d2):.2f}mm non sélectionnable)")
                         except Exception as _e_proche:
                             print(f"[ORing lies]   recherche série proche : {_e_proche}")
 
@@ -2293,9 +2369,23 @@ class DialogueORing(QtWidgets.QDialog):
 
             # Rafraîchissement visuel après chaque joint lié
             # → l'utilisateur voit la progression en 3D
+            #
+            # Gui.updateGui() seul ne suffit pas : _travail_lourd tourne dans
+            # le thread Qt principal, Qt ne peut repeindre qu'entre deux appels
+            # à la boucle d'événements.
+            # processEvents(ExcludeUserInputEvents) vide la file de peinture/
+            # timers SANS traiter les événements souris/clavier → pas de réentrance.
             try:
                 import FreeCADGui as _Gui
                 _Gui.updateGui()
+            except Exception:
+                pass
+            try:
+                from PySide2.QtWidgets import QApplication
+                from PySide2.QtCore    import QEventLoop
+                QApplication.processEvents(
+                    QEventLoop.ExcludeUserInputEvents
+                    | QEventLoop.ExcludeSocketNotifiers)
             except Exception:
                 pass
 
@@ -2784,6 +2874,19 @@ class DialogueORing(QtWidgets.QDialog):
                     break
         if not restored:
             self.combo_serie.setCurrentIndex(0)
+
+        # Garantie : l'item sélectionné ne doit jamais être un item grisé.
+        # Si l'index courant pointe sur un item disabled, chercher le prochain
+        # item enabled (en commençant par Auto=0).
+        _idx_cur = self.combo_serie.currentIndex()
+        _cur_item = model.item(_idx_cur)
+        if _cur_item and not _cur_item.isEnabled():
+            # Chercher le premier item enabled
+            for i in range(model.rowCount()):
+                _it = model.item(i)
+                if _it and _it.isEnabled():
+                    self.combo_serie.setCurrentIndex(i)
+                    break
 
         self.combo_serie.blockSignals(False)
 
@@ -4084,7 +4187,9 @@ class DialogueORing(QtWidgets.QDialog):
 
                 def _travail_lourd():
                     try:
-                        self._maj_joints_lies(_body_label_pour_lies)
+                        self._maj_joints_lies(
+                            _body_label_pour_lies,
+                            dlg_progression=_dlg_attente)
                     except Exception as _e_lies:
                         print(f"[ORing] AVERT _maj_joints_lies : {_e_lies}")
 
@@ -4166,6 +4271,35 @@ class DialogueORing(QtWidgets.QDialog):
         except Exception as e:
             print(f"[ORing] TechDraw maj : {e}")
 
+    def _get_body_gorge_label(self):
+        """Retourne le label du body gorge à restaurer comme body actif.
+        Priorité :
+          1. _dernier_body_gorge_label (mis à jour après chaque Appliquer)
+          2. body_gorge_label stocké dans les métadonnées du Part en cours de modification
+          3. Première ligne de l'onglet 3 (joints existants)
+        """
+        label = getattr(self, '_dernier_body_gorge_label', None)
+        if label:
+            return label
+        # Fallback : lire depuis les métadonnées du dernier Part modifié
+        try:
+            from .metadata import lire_metadonnees
+            part = getattr(self, '_part_en_modification', None)
+            if part is None and hasattr(self, 'table_joints'):
+                # Prendre le premier Part de la liste
+                from .metadata import lister_parts_oring
+                parts = lister_parts_oring(self._doc)
+                if parts:
+                    part = parts[0]
+            if part is not None:
+                meta = lire_metadonnees(part)
+                lbl = meta.get('body_gorge_label', '')
+                if lbl:
+                    return lbl
+        except Exception:
+            pass
+        return None
+
     def closeEvent(self, event):
         """Restaure exactement l'état visuel d'origine avant fermeture."""
         _restaurer_snapshot(self._doc)
@@ -4173,17 +4307,14 @@ class DialogueORing(QtWidgets.QDialog):
             self.table_joints._locked_row = -1
             self.table_joints._hover_row  = -1
         # Restaurer le body gorge comme body actif AVANT TechDraw
-        # (évite le bug "Fillet dialog n'apparaît pas" après la macro)
-        _label = getattr(self, '_dernier_body_gorge_label', None)
-        self._restaurer_body_actif(self._doc, _label)
+        self._restaurer_body_actif(self._doc, self._get_body_gorge_label())
         self._maj_techdraw(self._doc)
         super().closeEvent(event)
 
     def reject(self):
         """Fermeture par Échap ou bouton Fermer."""
         _restaurer_snapshot(self._doc)
-        _label = getattr(self, '_dernier_body_gorge_label', None)
-        self._restaurer_body_actif(self._doc, _label)
+        self._restaurer_body_actif(self._doc, self._get_body_gorge_label())
         self._maj_techdraw(self._doc)
         super().reject()
 
@@ -4226,6 +4357,57 @@ def _set_contrainte(sketch, prefixe: str, valeur, en_degres: bool = False) -> bo
     except Exception as e:
         print(f"[ORing modif] setDatum '{prefixe}' EXCEPTION : {e}")
     return False
+
+
+# =============================================================================
+# Utilitaires : silence des logs FreeCAD pendant les recomputes
+# =============================================================================
+
+def _silence_propertlylinks():
+    """Désactive temporairement les messages <PropertyLinks> du moteur FreeCAD.
+    FreeCAD.setLogLevel ne couvre pas ce canal — on redirige le rapport
+    en interceptant FreeCAD.Console.PrintLog.
+    """
+    try:
+        import FreeCAD as _FC
+        # Méthode 1 : setLogLevel (couvre certains canaux)
+        try:
+            _FC.setLogLevel('PropertyLinks', 0)
+        except Exception:
+            pass
+        # Méthode 2 : observer Console pour filtrer PropertyLinks
+        class _NullObserver:
+            def __init__(self):
+                self._orig = None
+            def send(self, msg):
+                pass  # absorber
+        # Stocker l'observer pour restauration
+        _silence_propertlylinks._observer = _NullObserver()
+        try:
+            _FC.Console.AttachObserver(_silence_propertlylinks._observer)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _restore_propertylinks():
+    """Restaure le niveau de log <PropertyLinks> à sa valeur par défaut."""
+    try:
+        import FreeCAD as _FC
+        try:
+            _FC.setLogLevel('PropertyLinks', 3)
+        except Exception:
+            pass
+        obs = getattr(_silence_propertlylinks, '_observer', None)
+        if obs is not None:
+            try:
+                _FC.Console.DetachObserver(obs)
+            except Exception:
+                pass
+            _silence_propertlylinks._observer = None
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -4420,7 +4602,9 @@ def _restaurer_habillage(doc, body, suspendues):
         try:
             feat.Suppressed = False
             feat.touch()
+            _silence_propertlylinks()
             doc.recompute()
+            _restore_propertylinks()
         except Exception as _e:
             print(f"[ORing TNP] Réactivation '{feat.Label}' : {_e}")
             _encore_erreur.append(feat.Label)
@@ -4473,7 +4657,9 @@ def _restaurer_habillage(doc, body, suspendues):
 
             feat.Base = (base_feat, nouveaux_noms)
             feat.touch()
+            _silence_propertlylinks()
             doc.recompute()
+            _restore_propertylinks()
 
             if not _est_en_erreur(feat):
                 print(f"[ORing TNP] ✓ '{feat.Label}' restauré par remapping")
@@ -4712,7 +4898,9 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
         # une géométrie stable.
         _tnp_suspendues = _suspendre_habillage(body_gorge_obj) if body_gorge_obj else []
         if _tnp_suspendues:
+            _silence_propertlylinks()
             doc.recompute()  # Valider la suspension avant de modifier la gorge
+            _restore_propertylinks()
 
         # Fallback : si features_liees toujours vide, chercher tout Groove/Mirrored
         # appartenant au même body (cas où Profile est stocké différemment).
@@ -4730,13 +4918,21 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                       f"— recompute via body uniquement")
 
         def _set_contraintes_neutres():
-            """Contraintes non-radiales (largeur, filets, dépouille) : sans dépendance
-            d'ordre entre elles, toujours appliquées en premier.
-            Note : 'demiLargeur' est présent uniquement dans le sketch arbre.
-                   'demiLargeurGorge' existe dans les deux sketches.
-                   On ne cherche 'demiLargeur' qu'en excluant le préfixe plus long."""
-            # Chercher la contrainte 'demiLargeur' seule (pas demiLargeurGorge)
-            # en vérifiant startswith + que ce n'est pas demiLargeurGorge
+            """Contraintes non-radiales sûres (filets, dépouille) : applicables
+            avant les radiales car elles ne dépendent pas des rayons.
+            NOTE : demiLargeurGorge N'EST PAS appliquée ici — elle est appliquée
+            dans _set_contrainte_largeur() APRÈS les radiales, car pour de grands
+            changements de diamètre (ex. Ø60→Ø30) la nouvelle largeur est
+            incompatible avec les anciens rayons et le solveur la rejette.
+            """
+            _set_contrainte(sketch_gorge, 'FilletHautGorge',  f_haut)
+            _set_contrainte(sketch_gorge, 'FilletFondGorge',  f_fond)
+            _set_contrainte(sketch_gorge, 'depouille',        depouille_deg, en_degres=True)
+
+        def _set_contrainte_largeur():
+            """Applique demiLargeurGorge (et demiLargeur pour gorge arbre) APRÈS
+            que les rayons sont stables. Le solveur accepte alors la nouvelle
+            largeur sans conflit topologique."""
             for _idx, _c in enumerate(sketch_gorge.Constraints):
                 if _c.Name.startswith('demiLargeur') and not _c.Name.startswith('demiLargeurG'):
                     try:
@@ -4746,9 +4942,6 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                         print(f"[ORing modif] setDatum 'demiLargeur' EXCEPTION : {_e}")
                     break
             _set_contrainte(sketch_gorge, 'demiLargeurGorge', b2)
-            _set_contrainte(sketch_gorge, 'FilletHautGorge',  f_haut)
-            _set_contrainte(sketch_gorge, 'FilletFondGorge',  f_fond)
-            _set_contrainte(sketch_gorge, 'depouille',        depouille_deg, en_degres=True)
 
         def _lire_rayon_courant(nom):
             """Lit la valeur courante d'une contrainte dont le nom commence par `nom`."""
@@ -4811,14 +5004,60 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                 break
         if _incoherent:
             print("[ORing modif GORGE] état incohérent détecté (écart > 50%) "
-                  "→ reset forcé puis logique pas-à-pas")
-            # Appliquer directement les cibles sans ordre — le solveur ne peut
-            # pas être plus incohérent qu'il ne l'est déjà.
-            _set_contrainte(sketch_gorge, 'RayonAlesage', r_alesage)
-            _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
-            _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
-            _recompute_intermediaire()
-            # Relire les valeurs après le reset
+                  "→ reset ordonné par paliers")
+            # Pour les grands changements, appliquer dans l'ordre qui respecte
+            # l'invariant du solveur à chaque étape :
+            #   gorge ARBRE   : RayonGorge < RayonArbre < RayonAlesage
+            #   gorge ALÉSAGE : RayonArbre < RayonAlesage < RayonGorge
+            #
+            # RÉDUCTION (nouvelle < ancienne) :
+            #   ARBRE   → RayonGorge d'abord (intérieur), puis RayonArbre, puis RayonAlesage
+            #   ALÉSAGE → RayonArbre d'abord, puis RayonAlesage, puis RayonGorge
+            # AGRANDISSEMENT :
+            #   ARBRE   → RayonAlesage d'abord (extérieur), puis RayonArbre, puis RayonGorge
+            #   ALÉSAGE → RayonGorge d'abord, puis RayonAlesage, puis RayonArbre
+            #
+            # On détermine le sens sur la valeur la plus représentative (RayonArbre/Alesage)
+            if position == 'arbre':
+                _grossit_reset = r_arbre > r_arbre_old
+                if _grossit_reset:
+                    _set_contrainte(sketch_gorge, 'RayonAlesage', r_alesage)
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                    _recompute_intermediaire()
+                    _set_contrainte_largeur()
+                else:
+                    _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                    _recompute_intermediaire()
+                    _set_contrainte_largeur()
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonAlesage', r_alesage)
+                    _recompute_intermediaire()
+            else:
+                _grossit_reset = r_alesage > r_alesage_old
+                if _grossit_reset:
+                    _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                    _recompute_intermediaire()
+                    _set_contrainte_largeur()
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonAlesage', r_alesage)
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
+                    _recompute_intermediaire()
+                else:
+                    _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonAlesage', r_alesage)
+                    _recompute_intermediaire()
+                    _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                    _recompute_intermediaire()
+                    _set_contrainte_largeur()
+                    _recompute_intermediaire()
+            # Relire les valeurs après le reset (les radiales sont déjà aux cibles)
             r_arbre_old   = _lire_rayon_courant('RayonArbre')
             r_gorge_old   = _lire_rayon_courant('RayonGorge')
             r_alesage_old = _lire_rayon_courant('RayonAlesage')
@@ -4826,9 +5065,8 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
         # ── Contraintes neutres (ordre indifférent) ───────────────────────────
         _set_contraintes_neutres()
         sketch_gorge.solve()
-        # Après un reset incoherent, les neutres peuvent avoir changé (ex. changement
-        # de série) : forcer un recompute intermédiaire pour propager avant la séquence
-        # radiale. Sans ça, le recompute final doit tout gérer d'un coup et peut échouer.
+        # Après un reset incoherent, les radiales ET la largeur sont déjà
+        # appliquées dans le reset. On applique seulement les neutres ici.
         if _incoherent:
             _recompute_intermediaire()
 
@@ -4849,6 +5087,9 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
         # Un recompute intermédiaire après chaque étape valide l'état et évite
         # les conflits transitoires même pour de grandes variations (ex. 40 → 20 mm).
 
+        # Si le reset incoherent a déjà mis les rayons aux cibles,
+        # la séquence radiale ci-dessous sera un no-op (toutes les valeurs
+        # sont déjà égales aux cibles). On la garde pour valider l'état final.
         if position == 'arbre':
             grossit = r_arbre > r_arbre_old
             if grossit:
@@ -4858,11 +5099,15 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                 # Étape 2 : élargir l'arbre
                 _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
                 _recompute_intermediaire()
-                # Étape 3 : reculer le fond de gorge
+                # Étape 3 : reculer le fond de gorge + largeur
                 _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                _recompute_intermediaire()
+                _set_contrainte_largeur()
             else:
-                # Étape 1 : avancer le fond de gorge (borne intérieure)
+                # Étape 1 : avancer le fond de gorge + largeur
                 _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                _recompute_intermediaire()
+                _set_contrainte_largeur()
                 _recompute_intermediaire()
                 # Étape 2 : réduire l'arbre
                 _set_contrainte(sketch_gorge, 'RayonArbre',   r_arbre)
@@ -4878,9 +5123,11 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                   f"r_alesage {r_alesage_old:.4f}→{r_alesage:.4f}  "
                   f"r_gorge {r_gorge_old:.4f}→{r_gorge:.4f}")
             if grossit:
-                # Étape 1 : avancer le fond de gorge vers l'extérieur
+                # Étape 1 : avancer le fond de gorge vers l'extérieur + largeur
                 print("[ORing modif GORGE] étape 1/3 : RayonGorge")
                 _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                _recompute_intermediaire()
+                _set_contrainte_largeur()
                 _recompute_intermediaire()
                 # Étape 2 : élargir l'alésage
                 print("[ORing modif GORGE] étape 2/3 : RayonAlesage")
@@ -4898,11 +5145,15 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
                 print("[ORing modif GORGE] étape 2/3 : RayonAlesage")
                 _set_contrainte(sketch_gorge, 'RayonAlesage', r_alesage)
                 _recompute_intermediaire()
-                # Étape 3 : rapprocher le fond de gorge
+                # Étape 3 : rapprocher le fond de gorge + largeur
                 print("[ORing modif GORGE] étape 3/3 : RayonGorge")
                 _set_contrainte(sketch_gorge, 'RayonGorge',   r_gorge)
+                _recompute_intermediaire()
+                _set_contrainte_largeur()
 
         # ── Recompute final ───────────────────────────────────────────────────
+        # La largeur (demiLargeurGorge) a déjà été appliquée dans la séquence
+        # ordonnée ci-dessus, après que les rayons sont stables.
         import time as _t
         _t0_recompute = _t.time()
         sketch_gorge.solve()
@@ -4911,10 +5162,18 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
             feat.touch()
         if body_gorge_obj is not None:
             body_gorge_obj.touch()
+        _silence_propertlylinks()
         doc.recompute()
+        _restore_propertylinks()
         print(f"[ORing modif GORGE]   recompute() effectué  "
               f"(sens={'agrandissement' if (grossit if position=='arbre' else grossit) else 'rétrécissement'})  "
               f"durée={_t.time()-_t0_recompute:.2f}s")
+        # Rafraîchir la vue après le recompute gorge.
+        try:
+            import FreeCADGui as _Gui
+            _Gui.updateGui()
+        except Exception:
+            pass
 
         # ── TNP recovery : remapping géométrique des arêtes d'habillage ────────
         # Stratégie :
@@ -5013,6 +5272,12 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
             meta_existante['body_oring_name'] = body_oring_old.Name
             print(f"[ORing modif] Tore mis à jour in-place : '{body_oring_old.Name}'  "
                   f"total tore : {_t.time()-_t0_tore:.2f}s")
+            # Rafraîchir la vue après mise à jour du tore.
+            try:
+                import FreeCADGui as _Gui
+                _Gui.updateGui()
+            except Exception:
+                pass
 
     # ── Fallback : suppression + recréation ────────────────────────────────
     if body_oring_new is None:
@@ -5058,11 +5323,20 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
             meta_existante['body_oring_name'] = body_oring_new.Name
             print(f"[ORing modif] Body ORing recréé : '{body_oring_new.Name}'"
                   f"  total tore : {_t.time()-_t0_tore:.2f}s")
+            # Rafraîchir la vue après recréation du tore.
+            try:
+                import FreeCADGui as _Gui
+                _Gui.updateGui()
+            except Exception:
+                pass
         except Exception as e_rec:
             print(f"[ORing modif] AVERT : recréation body oring échouée : {e_rec}")
             body_oring_new = None
 
     # Couleur appliquée par _on_appliquer après le dernier recompute du flux.
+
+    # Restaurer le niveau de log PropertyLinks (silencié en début de fonction)
+    _restore_propertylinks()
 
 
 # =============================================================================
