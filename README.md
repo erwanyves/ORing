@@ -163,6 +163,8 @@ App::Part  "Equipped Shaft"
 - **TechDraw auto-sync** — all drawing pages refreshed on dialog close
 - **3D progress feedback** — `Gui.updateGui()` after each linked assembly update
 - **Centered result dialog** — success message centered on the sizing window
+- **Auto Highlight**  — when an ORing is selected for modification, it stays highlighted for a better visual control
+- **i18n**  — two first languages implemented: en-fr
 
 ---
 
