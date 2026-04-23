@@ -1,3 +1,4 @@
+# Chemin : modules/sketch_alesage.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026
@@ -443,4 +444,3 @@ if __name__ == '__main__':
     print(f"  r_gorge      = {r_gorge:.3f} mm  (r_gorge > r_alesage : {r_gorge > r_alesage})")
     print(f"  h            = {r.h:.3f} mm")
     print(f"  b/2          = {b2:.4f} mm")
-

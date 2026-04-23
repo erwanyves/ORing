@@ -1,3 +1,4 @@
+# Chemin : modules/dialogue.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026
@@ -94,6 +95,7 @@ except ImportError:
         QBrush = _Stub
         QColor = _Stub
 
+from .i18n import tr
 from .calcul    import calculer_gorge, afficher_synthese, TYPES_MONTAGE, STANDARDS, ecarts_arbre, it_value
 from .materiaux import liste_materiaux, get_materiau
 from .joints    import liste_series, liste_d2, get_plage_squeeze, choisir_d1
@@ -107,20 +109,17 @@ from .utils     import (lister_bodies, lister_lcs, lister_parametres_body,
 # MESSAGE D'INSTRUCTION (étape 1b)
 # =============================================================================
 
-_MSG_PREREQUIS = """\
-Pour utiliser cette macro, votre document doit contenir :
-
-  • Au moins un Body destiné à recevoir la gorge
-    → Ce body doit posséder un LCS (pour l'accrochage du sketch)
-      et un paramètre nommé définissant le diamètre ou le rayon
-      d'implantation.
-
-  • Au moins un Body complémentaire
-    → Ce body doit posséder un paramètre nommé définissant
-      le diamètre ou le rayon d'appui.
-
-La macro se ferme.
-Veuillez préparer vos bodies et relancer."""
+_MSG_PREREQUIS = tr(
+    "To use this macro, your document must contain:\n\n"
+    "  • At least one Body to receive the groove\n"
+    "    → This body must have a LCS (for sketch attachment)\n"
+    "      and a named parameter defining the diameter or radius.\n\n"
+    "  • At least one complementary Body\n"
+    "    → This body must have a named parameter defining\n"
+    "      the diameter or radius.\n\n"
+    "The macro will close.\n"
+    "Please prepare your bodies and restart."
+)
 
 
 # =============================================================================
@@ -130,13 +129,13 @@ Veuillez préparer vos bodies et relancer."""
 def _libelles_position(position: str) -> tuple:
     if position == 'arbre':
         return (
-            "Piece portant la GORGE = ARBRE  ← sketch genere ICI",
-            "Piece SANS gorge = ALESAGE  (diametre de reference)",
+            tr("Groove body = SHAFT  ← sketch generated HERE"),
+            tr("Complementary part = BORE  (reference diameter)"),
         )
     else:
         return (
-            "Piece portant la GORGE = ALESAGE  ← sketch genere ICI",
-            "Piece SANS gorge = ARBRE  (diametre de reference)",
+            tr("Groove body = BORE  ← sketch generated HERE"),
+            tr("Complementary part = SHAFT  (reference diameter)"),
         )
 
 
@@ -191,7 +190,7 @@ class _DiagrammeAjustement(QtWidgets.QWidget):
         if self._data is None:
             p.setPen(QColor('#aaaaaa'))
             p.drawText(0, 0, W, H, Qt.AlignCenter,
-                       "Sélectionner mode ISO\npour afficher le diagramme")
+                       tr("Select ISO mode\nto display the diagram"))
             return
 
         d   = self._data
@@ -325,14 +324,14 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
         layout = QtWidgets.QFormLayout(self)
 
         self.combo_body = QtWidgets.QComboBox()
-        layout.addRow("Body :", self.combo_body)
+        layout.addRow(tr("Body:"), self.combo_body)
 
         self.combo_param = QtWidgets.QComboBox()
-        self.combo_param.addItem("— selectionner —", None)
-        layout.addRow("Paramètre Ø :", self.combo_param)
+        self.combo_param.addItem(tr("— select —"), None)
+        layout.addRow(tr("Parameter Ø:"), self.combo_param)
 
-        self.radio_diametre = QtWidgets.QRadioButton("Diametre")
-        self.radio_rayon    = QtWidgets.QRadioButton("Rayon")
+        self.radio_diametre = QtWidgets.QRadioButton(tr("Diameter"))
+        self.radio_rayon    = QtWidgets.QRadioButton(tr("Radius"))
         self.radio_diametre.setChecked(True)
         grp = QtWidgets.QButtonGroup(self)
         grp.addButton(self.radio_diametre)
@@ -340,10 +339,10 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
         hl = QtWidgets.QHBoxLayout()
         hl.addWidget(self.radio_diametre)
         hl.addWidget(self.radio_rayon)
-        layout.addRow("Le parametre est un :", hl)
+        layout.addRow(tr("The parameter is a:"), hl)
 
         self.label_valeur = QtWidgets.QLabel("—")
-        layout.addRow("Valeur lue :", self.label_valeur)
+        layout.addRow(tr("Read value:"), self.label_valeur)
 
         # Connexions avant _peupler_combo_body pour que _on_body_change
         # trouve combo_param déjà créé lors de l'auto-sélection initiale
@@ -362,7 +361,7 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
         """Peuple le combo body depuis une liste de bodies.
         Auto-sélectionne si un seul body disponible."""
         self.combo_body.clear()
-        self.combo_body.addItem("— selectionner —", None)
+        self.combo_body.addItem(tr("— select —"), None)
         for b in bodies:
             self.combo_body.addItem(b.Label, b)
         # Auto-sélection si un seul choix possible
@@ -394,7 +393,7 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
         body = self.combo_body.currentData()
         self.combo_param.blockSignals(True)
         self.combo_param.clear()
-        self.combo_param.addItem("— selectionner —", None)
+        self.combo_param.addItem(tr("— select —"), None)
         if body:
             params = lister_parametres_body(body)
             for nom in sorted(params.keys()):
@@ -406,15 +405,37 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
         self.combo_param.blockSignals(False)
         self._on_param_change()
 
-    def _auto_radio_depuis_nom(self, nom: str):
+    def _auto_radio_depuis_nom(self, nom: str, forcer: bool = False):
         """
-        Pré-coche radio Rayon si nom commence par R/r,
-        Diamètre si D/d. Ignore les autres préfixes.
+        Suggère la position du radio Diamètre/Rayon selon le préfixe du
+        paramètre sélectionné :
+          - Nom commençant par R ou r → Rayon
+          - Nom commençant par D ou d → Diamètre
+          - Autre préfixe → aucun changement
+
+        Le radio reste toujours librement modifiable par l'utilisateur.
+        La suggestion n'est appliquée que si :
+          - forcer=True (ex. première sélection du combo), ou
+          - le radio est dans sa valeur par défaut (Diamètre) et l'utilisateur
+            n'a pas encore interagi avec lui.
+
         Bloque les signaux pour ne pas déclencher de recalcul prématuré.
         """
         if not nom:
             return
         premier = nom[0].lower()
+        if premier not in ('r', 'd'):
+            return  # Préfixe non reconnu → laisser l'utilisateur choisir
+
+        # Ne suggérer que si le radio est sur sa valeur par défaut (Diamètre)
+        # ou si la suggestion est explicitement forcée.
+        # Cela préserve tout choix manuel de l'utilisateur.
+        if not forcer:
+            # Si le radio est déjà sur Rayon (valeur non-défaut), l'utilisateur
+            # l'a peut-être positionné intentionnellement → ne pas écraser.
+            if self.radio_rayon.isChecked() and premier == 'd':
+                return  # L'utilisateur a choisi Rayon manuellement → respecter
+
         if premier == 'r':
             self.radio_rayon.blockSignals(True)
             self.radio_diametre.blockSignals(True)
@@ -427,14 +448,16 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
             self.radio_diametre.setChecked(True)
             self.radio_rayon.blockSignals(False)
             self.radio_diametre.blockSignals(False)
-        # Autres préfixes → ne pas toucher au radio courant
 
     def _on_param_change(self, _=None):
         nom  = self.combo_param.currentData()
         body = self.combo_body.currentData()
         if nom and body:
-            # Auto-détecter rayon/diamètre selon le préfixe du nom (#R/D)
-            self._auto_radio_depuis_nom(nom)
+            # Suggérer rayon/diamètre selon le préfixe du nom (#R/D)
+            # forcer=True car c'est l'utilisateur qui vient de changer le
+            # paramètre — on suggère la valeur la plus probable.
+            # L'utilisateur peut corriger librement après.
+            self._auto_radio_depuis_nom(nom, forcer=True)
             params = lister_parametres_body(body)
             val    = params.get(nom)
             if val is not None:
@@ -739,7 +762,7 @@ class DialogueORing(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("ORing — Dimensionnement joint torique")
+        self.setWindowTitle(tr("ORing — O-Ring Groove Sizing"))
         self.setMinimumWidth(620)
         self.setModal(True)
         self._resultat            = None
@@ -786,7 +809,7 @@ class DialogueORing(QtWidgets.QDialog):
         v1.addWidget(self._section_contexte())
         v1.addWidget(self._section_materiau())
         v1.addStretch()
-        tabs.addTab(w1, "1 · Contexte / Matériau")
+        tabs.addTab(w1, tr("1 · Context / Material"))
 
         # — Onglet 2 : Pièces + Joint/Gorge + synthèse résultats ───────
         w2 = QtWidgets.QWidget()
@@ -797,22 +820,22 @@ class DialogueORing(QtWidgets.QDialog):
         v2.addWidget(self._section_synthese())   # (A) résultats de gorge
         # (B) Analyse tolérances IT — désactivée temporairement
         v2.addStretch()
-        tabs.addTab(w2, "2 · Pièces / Joint / Résultats")
+        tabs.addTab(w2, tr("2 · Parts / Seal / Results"))
 
         # — Onglet 3 : Joints existants ────────────────────────────────
         w3 = QtWidgets.QWidget()
         v3 = QtWidgets.QVBoxLayout(w3)
         v3.setSpacing(6)
         v3.addWidget(self._section_joints_existants())   # (B) tableau
-        tabs.addTab(w3, "3 · Joints existants")
+        tabs.addTab(w3, tr("3 · Existing seals"))
 
         # Rafraîchir l'onglet 3 à l'activation
         tabs.currentChanged.connect(self._on_tab_change)
 
         # ── Boutons (hors onglets) ────────────────────────────────────────
         bl = QtWidgets.QHBoxLayout()
-        self.btn_appliquer = QtWidgets.QPushButton("Appliquer dans FreeCAD")
-        self.btn_fermer    = QtWidgets.QPushButton("Fermer")
+        self.btn_appliquer = QtWidgets.QPushButton(tr("Apply in FreeCAD"))
+        self.btn_fermer    = QtWidgets.QPushButton(tr("Close"))
         self.btn_appliquer.setEnabled(False)
 
         self.btn_appliquer.clicked.connect(self._on_appliquer)
@@ -880,7 +903,7 @@ class DialogueORing(QtWidgets.QDialog):
           Alertes    : liste rouge
           Avertiss.  : liste orange
         """
-        grp = QtWidgets.QGroupBox("Résultats du calcul")
+        grp = QtWidgets.QGroupBox(tr("Calculation results"))
         grid = QtWidgets.QGridLayout(grp)
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(4)
@@ -893,12 +916,12 @@ class DialogueORing(QtWidgets.QDialog):
             return lbl
 
         etiquettes = [
-            ("Joint",     "Joint sélectionné (standard / série / d2)"),
-            ("d1",        "Diamètre intérieur joint + étirement"),
-            ("Gorge",     "Profondeur h et largeur b de la gorge"),
-            ("Squeeze",   "Taux de serrage réel et taux de remplissage"),
-            ("Ø fond",    "Diamètre au fond de gorge"),
-            ("Extrusion", "Risque d'extrusion"),
+            (tr("Seal"),      tr("Selected seal (standard / series / d2)")),
+            (tr("d1"),        tr("Inner diameter + stretch")),
+            (tr("Groove"),    tr("Groove depth h and width b")),
+            (tr("Squeeze"),   tr("Actual squeeze and fill ratio")),
+            (tr("\u00d8 bottom"),  tr("Groove bottom diameter")),
+            (tr("Extrusion"), tr("Extrusion risk")),
         ]
         self._synth_vals = {}
         for row, (etiq, tip) in enumerate(etiquettes):
@@ -917,7 +940,7 @@ class DialogueORing(QtWidgets.QDialog):
         grid.addWidget(sep, len(etiquettes), 0, 1, 2)
 
         # Ligne statut
-        self.lbl_synth_statut = QtWidgets.QLabel("En attente de calcul…")
+        self.lbl_synth_statut = QtWidgets.QLabel(tr("Awaiting calculation\u2026"))
         self.lbl_synth_statut.setStyleSheet(
             "font-weight: bold; font-size: 10pt;"
         )
@@ -1010,7 +1033,7 @@ class DialogueORing(QtWidgets.QDialog):
         if r.risque_extrusion:
             txt_ext = str(r.risque_extrusion)
             if r.bague_antiextrusion:
-                txt_ext += "   ⚠ BAGUE ANTI-EXTRUSION REQUISE"
+                txt_ext += "   " + tr("\u26a0 ANTI-EXTRUSION RING REQUIRED")
                 style_ext = "color: #cc0000; font-weight: bold;"
             elif "lev" in txt_ext.lower():
                 style_ext = "color: #cc6600;"
@@ -1024,12 +1047,12 @@ class DialogueORing(QtWidgets.QDialog):
 
         # ── Statut global ──
         if r.valide:
-            self.lbl_synth_statut.setText("✓  VALIDE")
+            self.lbl_synth_statut.setText(tr("\u2713  VALID"))
             self.lbl_synth_statut.setStyleSheet(
                 "font-weight: bold; font-size: 10pt; color: #1a7a1a;"
             )
         else:
-            self.lbl_synth_statut.setText("✗  INVALIDE — voir alertes")
+            self.lbl_synth_statut.setText(tr("\u2717  INVALID \u2014 see alerts"))
             self.lbl_synth_statut.setStyleSheet(
                 "font-weight: bold; font-size: 10pt; color: #cc0000;"
             )
@@ -1057,47 +1080,48 @@ class DialogueORing(QtWidgets.QDialog):
         ORing du document courant, avec leurs métadonnées principales
         et un indicateur de dérive paramétrique.
         """
-        grp = QtWidgets.QGroupBox("Joints O-Ring insérés dans ce document")
+        grp = QtWidgets.QGroupBox(tr("O-Ring seals in this document"))
         vl  = QtWidgets.QVBoxLayout(grp)
         vl.setSpacing(6)
 
         # Barre de contrôle
         hl = QtWidgets.QHBoxLayout()
-        self.lbl_joints_nb = QtWidgets.QLabel("Aucun joint trouvé.")
+        self.lbl_joints_nb = QtWidgets.QLabel(tr("No seal found."))
         self.lbl_joints_nb.setStyleSheet("font-style: italic;")
 
         # Filtre position
         self.combo_filtre_position = QtWidgets.QComboBox()
-        self.combo_filtre_position.addItem("Tous",    "")
-        self.combo_filtre_position.addItem("Arbre",   "arbre")
-        self.combo_filtre_position.addItem("Alésage", "alesage")
+        self.combo_filtre_position.addItem(tr("All"),    "")
+        self.combo_filtre_position.addItem(tr("Shaft"),   "arbre")
+        self.combo_filtre_position.addItem(tr("Bore"), "alesage")
         self.combo_filtre_position.setFixedWidth(90)
-        self.combo_filtre_position.setToolTip("Filtrer par position de gorge")
+        self.combo_filtre_position.setToolTip(tr("Filter by groove position"))
         self.combo_filtre_position.currentIndexChanged.connect(
             self._on_filtre_position_change
         )
 
-        self.btn_refresh_joints = QtWidgets.QPushButton("↻  Rafraîchir")
+        self.btn_refresh_joints = QtWidgets.QPushButton(tr("↻  Refresh"))
         self.btn_refresh_joints.setFixedWidth(110)
         self.btn_refresh_joints.clicked.connect(self._rafraichir_joints_existants)
-        self.btn_recalibrer_couleurs = QtWidgets.QPushButton("🎨  Couleurs")
+        self.btn_recalibrer_couleurs = QtWidgets.QPushButton(tr("🎨  Colors"))
         self.btn_recalibrer_couleurs.setFixedWidth(110)
-        self.btn_recalibrer_couleurs.setToolTip(
-            "Recolorie tous les joints selon leur matériau.\n"
-            "Utile si des couleurs sont incorrectes ou manquantes."
-        )
+        self.btn_recalibrer_couleurs.setToolTip(tr(
+            "Re-color all seals by material.\n"
+            "Useful if colors are incorrect or missing."
+        ))
         self.btn_recalibrer_couleurs.clicked.connect(self._on_recalibrer_couleurs)
-        self.btn_modifier_joint = QtWidgets.QPushButton("✎  Modifier")
+        self.btn_modifier_joint = QtWidgets.QPushButton(tr("✎  Edit"))
         self.btn_modifier_joint.setFixedWidth(110)
         self.btn_modifier_joint.setEnabled(False)
-        self.btn_modifier_joint.setToolTip(
-            "Pré-remplit le dialogue avec les paramètres du joint sélectionné "
-            "pour les modifier et régénérer la gorge.\n"            "Double-clic sur une ligne produit le même effet."
-        )
+        self.btn_modifier_joint.setToolTip(tr(
+            "Pre-fill the dialog with the selected seal parameters\n"
+            "to modify and regenerate the groove.\n"
+            "Double-click on a row has the same effect."
+        ))
         self.btn_modifier_joint.clicked.connect(self._on_clic_modifier)
         hl.addWidget(self.lbl_joints_nb)
         hl.addStretch()
-        hl.addWidget(QtWidgets.QLabel("Position :"))
+        hl.addWidget(QtWidgets.QLabel(tr("Position:")))
         hl.addWidget(self.combo_filtre_position)
         hl.addWidget(self.btn_modifier_joint)
         hl.addWidget(self.btn_recalibrer_couleurs)
@@ -1106,10 +1130,10 @@ class DialogueORing(QtWidgets.QDialog):
 
         # Tableau
         COLONNES = [
-            "", "Position", "LCS", "Body gorge",
-            "Std / Série", "d2 (mm)", "d1 (mm)",
-            "h (mm)", "b (mm)", "Squeeze %", "Fill %",
-            "Δ dérive"
+            "", tr("Position"), tr("LCS"), tr("Groove body"),
+            tr("Std / Series"), tr("d2 (mm)"), tr("d1 (mm)"),
+            tr("h (mm)"), tr("b (mm)"), tr("Squeeze %"), tr("Fill %"),
+            tr("\u0394 drift")
         ]
         self.table_joints = _TableJointsHover(0, len(COLONNES))
         self.table_joints.setHorizontalHeaderLabels(COLONNES)
@@ -1141,8 +1165,8 @@ class DialogueORing(QtWidgets.QDialog):
 
         # Note explicative — masquée par défaut, affichée si dérive détectée
         self.lbl_note_derive = QtWidgets.QLabel(
-            "⚠ = le diamètre de la pièce complémentaire a changé depuis l'insertion "
-            "— cliquer Modifier pour recalculer automatiquement."
+            tr("\u26a0 = the complementary part diameter has changed since insertion "
+            "\u2014 click Edit to recalculate automatically.")
         )
         self.lbl_note_derive.setStyleSheet("font-size: 8pt;")
         self.lbl_note_derive.setWordWrap(True)
@@ -1165,7 +1189,7 @@ class DialogueORing(QtWidgets.QDialog):
         self.table_joints.setRowCount(0)
 
         if doc is None:
-            self.lbl_joints_nb.setText("Aucun document FreeCAD actif.")
+            self.lbl_joints_nb.setText(tr("No active FreeCAD document."))
             self._parts_liste = []
             return
 
@@ -1178,8 +1202,7 @@ class DialogueORing(QtWidgets.QDialog):
             print(f"[ORing onglet3] ERREUR _rafraichir_joints_existants :\n"
                   f"{traceback.format_exc()}")
             self.lbl_joints_nb.setText(
-                f"Erreur de rafraîchissement : {_e_raf}\n"
-                "(voir console FreeCAD)"
+                tr("Refresh error: {err}\n(see FreeCAD console)", err=_e_raf)
             )
 
     def _rafraichir_joints_existants_interne(
@@ -1216,14 +1239,15 @@ class DialogueORing(QtWidgets.QDialog):
                 icone_txt = "⚠"
                 icone_color = QtGui.QColor(200, 80, 0)
                 tooltip_icone = (
-                    f"Dérive détectée : Δ {delta:.3f} mm\n"
-                    "Le diamètre de la pièce complémentaire a changé\n"
-                    "depuis l'insertion. Cliquez Modifier pour recalculer."
+                    tr("Drift detected: \u0394 {delta:.3f} mm\n"
+                    "The complementary part diameter has changed\n"
+                    "since insertion. Click Edit to recalculate.",
+                    delta=delta)
                 )
             else:
                 icone_txt = "✓"
                 icone_color = QtGui.QColor(20, 140, 20)
-                tooltip_icone = "Dimensions cohérentes avec les métadonnées."
+                tooltip_icone = tr("Dimensions consistent with metadata.")
 
             item_icone = QtWidgets.QTableWidgetItem(icone_txt)
             item_icone.setTextAlignment(QtCore.Qt.AlignCenter)
@@ -1274,23 +1298,22 @@ class DialogueORing(QtWidgets.QDialog):
 
         nb_derives = sum(1 for d in derives_info.values() if d.get('derive'))
         if nb == 0:
-            self.lbl_joints_nb.setText("Aucun joint O-Ring inséré dans ce document.")
+            self.lbl_joints_nb.setText(tr("No O-Ring seal inserted in this document."))
             if hasattr(self, '_tabs'):
-                self._tabs.setTabText(2, "3 · Joints existants")
+                self._tabs.setTabText(2, tr("3 · Existing seals"))
                 try:
                     self._tabs.tabBar().setTabTextColor(2, QtGui.QColor())
                 except Exception:
                     pass
         elif nb == 1:
-            msg = "1 joint O-Ring trouvé."
+            msg = tr("1 O-Ring seal found.")
             if nb_derives:
-                msg += "  ⚠ Dérive détectée — cliquer Modifier pour recalculer."
+                msg += "  " + tr("\u26a0 Drift detected \u2014 click Edit to recalculate.")
             self.lbl_joints_nb.setText(msg)
         else:
-            msg = f"{nb} joints O-Ring trouvés."
+            msg = tr("{n} O-Ring seals found.", n=nb)
             if nb_derives:
-                msg += (f"  ⚠ {nb_derives} dérive(s) détectée(s) — "
-                        f"cliquer Modifier pour recalculer.")
+                msg += "  " + tr("\u26a0 {nd} drift(s) detected \u2014 click Edit to recalculate.", nd=nb_derives)
             self.lbl_joints_nb.setText(msg)
 
         # Réactiver le tri après remplissage complet
@@ -1307,7 +1330,7 @@ class DialogueORing(QtWidgets.QDialog):
         # ── Titre de l'onglet 3 : alerte visuelle si dérives ────────────
         if hasattr(self, '_tabs'):
             if nb_derives > 0:
-                titre = f"3 · Joints existants  ⚠ {nb_derives}"
+                titre = tr("3 · Existing seals") + f"  \u26a0 {nb_derives}"
                 # Colorer l'onglet en orange pour attirer l'attention
                 self._tabs.setTabText(2, titre)
                 try:
@@ -1316,7 +1339,7 @@ class DialogueORing(QtWidgets.QDialog):
                 except Exception:
                     pass
             else:
-                self._tabs.setTabText(2, "3 · Joints existants")
+                self._tabs.setTabText(2, tr("3 · Existing seals"))
                 try:
                     bar = self._tabs.tabBar()
                     bar.setTabTextColor(2, QtGui.QColor())  # couleur par défaut
@@ -1349,7 +1372,7 @@ class DialogueORing(QtWidgets.QDialog):
         if filtre:
             total = self.table_joints.rowCount()
             self.lbl_joints_nb.setText(
-                f"{nb_visibles} / {total} joint(s) affiché(s) — filtre : {filtre}"
+tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, total=total, filt=filtre)
             )
 
     def _on_selection_joint_change(self, *_):
@@ -1559,6 +1582,115 @@ class DialogueORing(QtWidgets.QDialog):
             self._resultat = resultat_propose
         return meta_updated
 
+
+
+    # ------------------------------------------------------------------
+    # Highlight du joint en cours de modification
+    # ------------------------------------------------------------------
+
+    def _debut_highlight(self, part, meta: dict):
+        """
+        Met en surbrillance le joint ORing en cours de modification.
+
+        Cible le body ORing (le tore 3D visible) plutôt que le Part
+        conteneur, pour que la surbrillance soit visuellement évidente
+        dans la vue 3D.
+
+        La surbrillance est maintenue jusqu'à l'appel de _fin_highlight().
+        """
+        self._highlighted_obj_name = ''
+        self._highlighted_doc_name = ''
+
+        if not FREECAD_DISPONIBLE or self._doc is None:
+            return
+        try:
+            # Cibler le body ORing (tore 3D) si disponible
+            body_name = meta.get('body_oring_name', '')
+            target = None
+            if body_name:
+                target = self._doc.getObject(body_name)
+            # Fallback : le Part conteneur
+            if target is None:
+                target = part
+
+            self._highlighted_obj_name = target.Name
+            self._highlighted_doc_name = self._doc.Name
+
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(self._doc.Name, target.Name)
+            print(f"[ORing] Highlight activé : {target.Label}")
+        except Exception as e:
+            print(f"[ORing] _debut_highlight AVERT : {e}")
+
+    def _fin_highlight(self):
+        """
+        Retire la surbrillance du joint ORing.
+        Appelée à la fermeture du dialogue et à l'annulation du mode modification.
+        """
+        if not FREECAD_DISPONIBLE:
+            return
+        try:
+            if getattr(self, '_highlighted_obj_name', ''):
+                Gui.Selection.clearSelection()
+                self._highlighted_obj_name = ''
+                self._highlighted_doc_name = ''
+                print("[ORing] Highlight désactivé")
+        except Exception as e:
+            print(f"[ORing] _fin_highlight AVERT : {e}")
+
+    def _ouvrir_depuis_selection(self, part):
+        """
+        Ouvre directement le dialogue en mode modification sur l'onglet 2
+        pour le joint ORing ``part``.
+
+        Équivalent à : onglet 3 → sélectionner le joint → clic Modifier.
+        Appelée depuis lancer_dialogue() quand un joint est sélectionné
+        avant le lancement de la macro.
+        """
+        try:
+            from .metadata import lire_metadonnees, verifier_derives
+        except ImportError:
+            return
+
+        meta = lire_metadonnees(part)
+        if not meta:
+            print(f"[ORing] _ouvrir_depuis_selection : métadonnées introuvables pour {part.Name}")
+            return
+
+        # Initialiser la référence AVANT prefill (requis par _get_diametre_calcul)
+        self._part_en_modification = part
+        self._d_comp_ref_modif = float(meta.get('d_comp_ref_mm', 0.0))
+
+        # Vérifier dérive
+        try:
+            infos_derives = verifier_derives(self._doc)
+            derive_info = next(
+                (d for d in infos_derives if d['part'].Name == part.Name), None
+            )
+            if derive_info and derive_info.get('derive'):
+                meta_maj = self._recalculer_apres_derive(part, meta, derive_info)
+                if meta_maj is None:
+                    self._part_en_modification = None
+                    self._d_comp_ref_modif = 0.0
+                    return
+                meta = meta_maj
+                self._d_comp_ref_modif = float(
+                    meta.get('d_comp_ref_mm', self._d_comp_ref_modif)
+                )
+        except Exception as e:
+            print(f"[ORing] _ouvrir_depuis_selection dérive AVERT : {e}")
+
+        # Même séquence que _on_clic_modifier
+        try:
+            self.table_joints.deverrouiller()
+        except Exception:
+            pass
+        self._meta_en_cours = meta   # pour _debut_highlight dans _entrer_mode_modification
+        self._prefill_depuis_meta(meta)
+        self._entrer_mode_modification(part, meta)
+        self._tabs.setCurrentIndex(1)   # onglet 2 (index 1)
+        print(f"[ORing] Ouverture directe en mode modification : {part.Label}")
+
     def _on_clic_modifier(self):
         """
         Lit les métadonnées du joint sélectionné dans le tableau,
@@ -1628,6 +1760,7 @@ class DialogueORing(QtWidgets.QDialog):
 
         # Retirer le highlight verrouillé : on quitte la vue tableau
         self.table_joints.deverrouiller()
+        self._meta_en_cours = meta   # pour _debut_highlight dans _entrer_mode_modification
         self._prefill_depuis_meta(meta)
         self._entrer_mode_modification(part, meta)
         self._tabs.setCurrentIndex(1)   # basculer sur onglet 2
@@ -1806,27 +1939,39 @@ class DialogueORing(QtWidgets.QDialog):
             if d_courant and abs(d_courant - self._d_comp_ref_modif) > 1e-4:
                 delta = d_courant - self._d_comp_ref_modif
                 derive_msg = (
-                    f"⚠  Dérive détectée : Ø référence = {self._d_comp_ref_modif:.3f} mm "
-                    f"→ valeur actuelle = {d_courant:.3f} mm  (Δ {delta:+.3f} mm)\n"
-                    f"   Le calcul utilise le diamètre de référence de l'insertion. "
-                    f"Recréez le joint pour prendre en compte la nouvelle valeur."
+                    tr("\u26a0  Drift detected: reference \u00d8 = {ref:.3f} mm "
+                    "\u2192 current value = {cur:.3f} mm  (\u0394 {delta:+.3f} mm)\n"
+                    "   The calculation uses the reference diameter from insertion. "
+                    "Recreate the seal to use the new value.",
+                    ref=self._d_comp_ref_modif, cur=d_courant, delta=delta)
                 )
+
+        # ── Mettre le joint en surbrillance ──────────────────────────────
+        # Récupérer meta depuis les attributs déjà stockés si dispo
+        try:
+            _meta_hl = getattr(self, '_meta_en_cours', None)
+            if _meta_hl is None:
+                from .metadata import lire_metadonnees
+                _meta_hl = lire_metadonnees(part) or {}
+            self._debut_highlight(part, _meta_hl)
+        except Exception as _e_hl:
+            print(f"[ORing] highlight dans _entrer AVERT : {_e_hl}")
 
         # ── Verrouiller les widgets non-modifiables ───────────────────────
         self._appliquer_verrous_modification(verrouiller=True)
 
         # ── Titre et bouton Appliquer ─────────────────────────────────────
         self.setWindowTitle(
-            f"ORing — Modification : {body_label}  ·  LCS {lcs_label}"
+            tr("ORing — Edit: {body}  ·  LCS {lcs}", body=body_label, lcs=lcs_label)
         )
-        self.btn_appliquer.setText("Mettre à jour")
+        self.btn_appliquer.setText(tr("Update"))
         self.btn_appliquer.setEnabled(True)
         self.btn_appliquer.setStyleSheet(
             "QPushButton { background-color: #1a5276; color: white; font-weight: bold; }"
         )
         # ── Bouton Annuler modification ───────────────────────────────────
         if not hasattr(self, 'btn_annuler_modif'):
-            self.btn_annuler_modif = QtWidgets.QPushButton("✕  Annuler modification")
+            self.btn_annuler_modif = QtWidgets.QPushButton(tr("✕  Cancel edit"))
             self.btn_annuler_modif.clicked.connect(self._annuler_mode_modification)
             layout_outer = self.layout()
             item = layout_outer.itemAt(layout_outer.count() - 1)
@@ -1846,7 +1991,7 @@ class DialogueORing(QtWidgets.QDialog):
             # avertissement via QMessageBox (ci-dessous)
             QtWidgets.QMessageBox.warning(
                 self,
-                "ORing — Dérive du diamètre de référence",
+                tr("ORing \u2014 Reference diameter drift"),
                 derive_msg
             )
 
@@ -1866,6 +2011,12 @@ class DialogueORing(QtWidgets.QDialog):
         doc = self._doc
         if doc is None:
             return
+
+        # Capturer le résultat du joint modifié AVANT d'entrer dans la boucle.
+        # self._resultat peut être écrasé lors d'un recalcul intermédiaire ;
+        # on fige ici la référence pour que tous les joints liés puissent
+        # utiliser les mêmes dimensions garanties valides.
+        _r_joint_modifie = self._resultat
 
         # Recalculer toutes les dérives après la modification
         derives = [d for d in verifier_derives(doc) if d.get('derive')]
@@ -1913,6 +2064,13 @@ class DialogueORing(QtWidgets.QDialog):
 
         print(f"[ORing lies] série joint modifié='{_serie_joint_modifie}'  "
               f"tous_meme_serie={_tous_meme_serie}")
+
+        # Suivi des joints dont le standard a dû être changé faute de solution
+        # dans le standard d'origine. Chaque entrée est un dict :
+        #   { 'label', 'std_avant', 'serie_avant', 'std_apres', 'serie_apres' }
+        # La liste est retournée en fin de méthode et consommée par _travail_lourd
+        # pour afficher une alerte récapitulative à l'utilisateur.
+        _changements_standard = []
 
         # Pré-calculer le nombre de joints qui seront effectivement traités
         # (ceux qui partagent le body modifié) pour afficher 1/N puis 2/N
@@ -1975,9 +2133,9 @@ class DialogueORing(QtWidgets.QDialog):
                 try:
                     from PySide2.QtWidgets import QApplication
                     from PySide2.QtCore    import QEventLoop
-                    dlg_progression.setText(
-                        f"Mise à jour des joints liés en cours…\n\n"
-                        f"Joint {_n_joint_courant}/{_n_total_joints} : {_label_joint}"
+                    dlg_progression.setText(tr(
+                        "Updating linked seals...\n\nSeal {n}/{total}: {label}",
+                        n=_n_joint_courant, total=_n_total_joints, label=_label_joint)
                     )
                     QApplication.processEvents(
                         QEventLoop.ExcludeUserInputEvents
@@ -2150,132 +2308,44 @@ class DialogueORing(QtWidgets.QDialog):
                         pass  # En cas d'erreur du check Auto, on garde serie_ok tel quel
 
                 if not serie_ok and meta.get('serie', ''):
-                    print(f"[ORing lies]   série '{meta.get('serie')}' inadaptée "
-                          f"→ recherche série adaptée")
-                    from .joints import liste_series, get_serie as _get_serie
                     _std        = meta.get('standard', '')
                     _serie_orig = meta.get('serie', '')
-                    _d2_orig    = float(meta.get('d2_mm', 0.0)) or None
-                    if _d2_orig is None and _std and _serie_orig:
-                        try:
-                            _d2_orig = _get_serie(_std, _serie_orig).get('d2_nominal')
-                        except Exception:
-                            pass
-                    _r_proche = None
+                    print(f"[ORing lies]   série '{_serie_orig}' inadaptée au nouveau Ø "
+                          f"→ tentative avec les caractéristiques du joint modifié")
 
-                    # ── Cas 1 : tous les joints liés avaient la même série
-                    #    → imposer directement la série du joint modifié
-                    if _tous_meme_serie and _serie_joint_modifie and _std:
-                        try:
-                            _r_cand = calculer_gorge(
-                                diametre_piece_mm = d_alesage_calc,
-                                position          = position,
-                                type_montage      = meta.get('type_montage', 'statique'),
-                                materiau          = meta.get('materiau', 'NBR'),
-                                pression_bar      = float(meta.get('pression_bar', 0.0)),
-                                temperature_C     = float(meta.get('temperature_C', 20.0)),
-                                fluide            = meta.get('fluide', ''),
-                                standard          = _std,
-                                serie             = _serie_joint_modifie,
-                                squeeze_cible_pct = float(meta.get('squeeze_cible_pct', 0.0)),
-                                jeu_radial_mm     = jeu_mm,
-                            )
-                            if _r_cand.valide and _r_cand.squeeze_pct is not None:
-                                _sq = float(_r_cand.squeeze_pct)
-                                if 5.0 <= _sq <= 35.0:
-                                    _r_proche = _r_cand
-                                    print(f"[ORing lies]   série imposée (même série) : "
-                                          f"'{_serie_joint_modifie}' sq={_sq:.1f}%")
-                        except Exception as _e_imp:
-                            print(f"[ORing lies]   série imposée échouée : {_e_imp}")
+                    # Fallback : utiliser directement les caractéristiques du joint
+                    # modifié.  Le joint lié partage le même body → même diamètre
+                    # de référence → les valeurs (d2, h, b, squeeze) du joint modifié
+                    # sont garanties correctes et cohérentes pour cet assemblage.
+                    if (_r_joint_modifie is not None
+                            and _r_joint_modifie.valide
+                            and _r_joint_modifie.squeeze_pct is not None
+                            and 5.0 <= float(_r_joint_modifie.squeeze_pct) <= 35.0):
+                        r_new = _r_joint_modifie
+                        print(f"[ORing lies]   \u2713 caractéristiques du joint modifié adoptées : "
+                              f"d2={float(r_new.d2):.2f}mm  "
+                              f"sq={float(r_new.squeeze_pct):.1f}%")
 
-                    # ── Cas 2 : séries différentes ou série imposée invalide
-                    #    → chercher d'abord d2 supérieur ≥ d2_orig, puis inférieur
-                    if _r_proche is None and _std and _d2_orig:
-                        try:
-                            _sup = []  # d2 >= d2_orig
-                            _inf = []  # d2 < d2_orig
-                            for _s in liste_series(_std):
-                                if _s == _serie_orig:
-                                    continue
-                                try:
-                                    _d2_s = _get_serie(_std, _s).get('d2_nominal', 0)
-                                    if _d2_s >= _d2_orig:
-                                        _sup.append((_d2_s, _s))
-                                    else:
-                                        _inf.append((_d2_s, _s))
-                                except Exception:
-                                    pass
-                            # Priorité au plus gros d2 compatible (meilleure étanchéité)
-                            _sup.sort(key=lambda x: -x[0])  # décroissant
-                            _inf.sort(key=lambda x: -x[0])  # décroissant
-                            _candidats_ordonnes = [s for _, s in _sup] + [s for _, s in _inf]
-                            # Paramètres de sélectionnabilité (même logique que le combo UI)
-                            try:
-                                from .joints import _params_calcul as _pc2
-                                _st2 = _pc2()['stretch']
-                                _BLOQUANT2  = _st2['arbre']['max_bloquant']
-                                _COMPR_MAX2 = _st2['alesage']['compression_max']
-                            except Exception:
-                                _BLOQUANT2, _COMPR_MAX2 = 8.0, 3.0
-
-                            for _s_cand in _candidats_ordonnes:
-                                _r_cand = calculer_gorge(
-                                    diametre_piece_mm = d_alesage_calc,
-                                    position          = position,
-                                    type_montage      = meta.get('type_montage', 'statique'),
-                                    materiau          = meta.get('materiau', 'NBR'),
-                                    pression_bar      = float(meta.get('pression_bar', 0.0)),
-                                    temperature_C     = float(meta.get('temperature_C', 20.0)),
-                                    fluide            = meta.get('fluide', ''),
-                                    standard          = _std,
-                                    serie             = _s_cand,
-                                    squeeze_cible_pct = float(meta.get('squeeze_cible_pct', 0.0)),
-                                    jeu_radial_mm     = jeu_mm,
-                                )
-                                if not (_r_cand.valide and _r_cand.squeeze_pct is not None):
-                                    continue
-                                _sq = float(_r_cand.squeeze_pct)
-                                if not (5.0 <= _sq <= 35.0):
-                                    continue
-
-                                # Vérifier la sélectionnabilité : même critère que
-                                # le combo UI (_rafraichir_combo_serie) — stretch/compression
-                                _cand_ok = True
-                                try:
-                                    from .joints import choisir_d1 as _cd1
-                                    # D_fond = D_arbre − 2×h pour gorge arbre
-                                    _h_c = float(_r_cand.h) if _r_cand.h else 0.0
-                                    _d_arbre_c = d_alesage_calc - 2.0 * jeu_mm
-                                    if position == 'arbre':
-                                        _d_ref_c = max(0.0, _d_arbre_c - 2.0 * _h_c)
-                                    else:
-                                        _d_ref_c = _d_arbre_c
-                                    if _d_ref_c > 0:
-                                        _res_d1 = _cd1(_std, _s_cand, _d_ref_c, position)
-                                        _sp = _res_d1.get('stretch_pct', 0.0)
-                                        if position == 'arbre':
-                                            _cand_ok = -0.5 <= _sp <= _BLOQUANT2
-                                        else:
-                                            _cand_ok = -_COMPR_MAX2 <= _sp <= 0.5
-                                except Exception:
-                                    pass  # En cas d'erreur, accepter (fallback)
-
-                                if _cand_ok:
-                                    _r_proche = _r_cand
-                                    print(f"[ORing lies]   série proche retenue : '{_s_cand}' "
-                                          f"(d2={float(_r_cand.d2):.2f}mm, sq={_sq:.1f}%)")
-                                    break
-                                else:
-                                    print(f"[ORing lies]   '{_s_cand}' rejetée "
-                                          f"(d2={float(_r_cand.d2):.2f}mm non sélectionnable)")
-                        except Exception as _e_proche:
-                            print(f"[ORing lies]   recherche série proche : {_e_proche}")
-
-                    if _r_proche is not None:
-                        r_new = _r_proche
+                        # Tracker tout changement de série ou de standard
+                        _std_apres   = str(r_new.standard) if hasattr(r_new, 'standard') else _std
+                        _serie_apres = str(r_new.serie)    if hasattr(r_new, 'serie')    else ''
+                        if _std_apres != _std or _serie_apres != _serie_orig:
+                            _changements_standard.append({
+                                'label':       getattr(part, 'Label', part.Name),
+                                'std_avant':   _std,
+                                'serie_avant': _serie_orig,
+                                'std_apres':   _std_apres,
+                                'serie_apres': _serie_apres,
+                            })
+                            print(f"[ORing lies]   \u26a0 série/standard changé(s) : "
+                                  f"{_std}\u00b7{_serie_orig} "
+                                  f"\u2192 {_std_apres}\u00b7{_serie_apres}")
                     else:
-                        print(f"[ORing lies]   aucune série adaptée → Auto")
+                        # Dernier recours : Auto (serie='').
+                        # Ne devrait survenir que si self._resultat n'est pas
+                        # disponible (annulation en cours de session, etc.).
+                        print(f"[ORing lies]   résultat joint modifié non disponible "
+                              f"→ Auto (dernier recours)")
                         r_new = calculer_gorge(
                             diametre_piece_mm = d_alesage_calc,
                             position          = position,
@@ -2394,7 +2464,10 @@ class DialogueORing(QtWidgets.QDialog):
             doc.commitTransaction()
         except Exception:
             pass
-        print(f"[ORing lies] TOTAL : {_time.time()-_t_total:.2f}s pour {len(derives)} joint(s)")
+        _n_std = len(_changements_standard)
+        print(f"[ORing lies] TOTAL : {_time.time()-_t_total:.2f}s pour {len(derives)} joint(s)"
+              + (f"  —  {_n_std} changement(s) de standard" if _n_std else ""))
+        return _changements_standard
 
     def _on_recalibrer_couleurs(self):
         """Recolorie tous les joints ORing du document selon leur matériau.
@@ -2448,6 +2521,7 @@ class DialogueORing(QtWidgets.QDialog):
 
     def _annuler_mode_modification(self):
         """Quitte le mode modification : déverrouille les widgets et remet à zéro."""
+        self._fin_highlight()   # retirer la surbrillance du joint
         # Restaurer IMMÉDIATEMENT les états visuels (avant tout autre traitement)
         # quelle que soit la façon dont on sort du mode modification
         _restaurer_snapshot(self._doc)
@@ -2474,7 +2548,7 @@ class DialogueORing(QtWidgets.QDialog):
         if hasattr(self, 'spin_d_comp_modif'):
             self.spin_d_comp_modif.setVisible(False)
             self.lbl_d_comp_modif.setVisible(False)
-        self.setWindowTitle("ORing — Dimensionnement joint torique")
+        self.setWindowTitle(tr("ORing — O-Ring Groove Sizing"))
         self.btn_appliquer.setText("Appliquer dans FreeCAD")
         self.btn_appliquer.setStyleSheet("")
         if hasattr(self, 'btn_annuler_modif'):
@@ -2553,50 +2627,50 @@ class DialogueORing(QtWidgets.QDialog):
     # Section Contexte
     # ------------------------------------------------------------------
     def _section_contexte(self):
-        grp = QtWidgets.QGroupBox("Contexte")
+        grp = QtWidgets.QGroupBox(tr("Context"))
         f = QtWidgets.QFormLayout(grp)
         f.setVerticalSpacing(8)
 
         # Ligne 1 : position + pression côte à côte
         hl1 = QtWidgets.QHBoxLayout()
         self.combo_position = QtWidgets.QComboBox()
-        self.combo_position.addItem("Gorge sur arbre",    "arbre")
-        self.combo_position.addItem("Gorge dans alesage", "alesage")
+        self.combo_position.addItem(tr("Groove on shaft"),    "arbre")
+        self.combo_position.addItem(tr("Groove in bore"), "alesage")
         self.spin_pression = QtWidgets.QDoubleSpinBox()
         self.spin_pression.setRange(0, 2000)
         self.spin_pression.setSuffix(" bar")
         self.spin_pression.setDecimals(1)
         hl1.addWidget(self.combo_position, 2)
-        hl1.addWidget(QtWidgets.QLabel("  Pression max :"), 0)
+        hl1.addWidget(QtWidgets.QLabel(tr("  Max pressure:")), 0)
         hl1.addWidget(self.spin_pression, 1)
-        f.addRow("Position gorge :", hl1)
+        f.addRow(tr("Groove position:"), hl1)
 
         # Ligne 2 : plan esquisse + température côte à côte
         hl2 = QtWidgets.QHBoxLayout()
         self.combo_plan = QtWidgets.QComboBox()
-        self.combo_plan.addItem("Plan XZ  (Z = axe piece)", "XZ")
-        self.combo_plan.addItem("Plan YZ  (Z = axe piece)", "YZ")
+        self.combo_plan.addItem(tr("XZ plane  (Z = part axis)"), "XZ")
+        self.combo_plan.addItem(tr("YZ plane  (Z = part axis)"), "YZ")
         self.spin_temperature = QtWidgets.QDoubleSpinBox()
         self.spin_temperature.setRange(-200, 350)
         self.spin_temperature.setSuffix(" °C")
         self.spin_temperature.setValue(20.0)
         self.spin_temperature.setDecimals(0)
         hl2.addWidget(self.combo_plan, 2)
-        hl2.addWidget(QtWidgets.QLabel("  Temp. max :"), 0)
+        hl2.addWidget(QtWidgets.QLabel(tr("  Max temp.:")), 0)
         hl2.addWidget(self.spin_temperature, 1)
-        f.addRow("Plan d'esquisse :", hl2)
+        f.addRow(tr("Sketch plane:"), hl2)
 
         # Ligne 3 : type de montage
         self.combo_montage = QtWidgets.QComboBox()
-        self.combo_montage.addItem("Statique",                "statique")
-        self.combo_montage.addItem("Dynamique — translation", "dynamique_translation")
-        self.combo_montage.addItem("Dynamique — rotation",    "dynamique_rotation")
-        f.addRow("Type de montage :", self.combo_montage)
+        self.combo_montage.addItem(tr("Static"),                "statique")
+        self.combo_montage.addItem(tr("Dynamic — translation"), "dynamique_translation")
+        self.combo_montage.addItem(tr("Dynamic — rotation"),    "dynamique_rotation")
+        f.addRow(tr("Installation type:"), self.combo_montage)
 
         # Ligne 4 : fluide (indicatif)
         self.edit_fluide = QtWidgets.QLineEdit()
-        self.edit_fluide.setPlaceholderText("ex. huiles_minerales  (indicatif, verifie la compatibilite materiau)")
-        f.addRow("Fluide :", self.edit_fluide)
+        self.edit_fluide.setPlaceholderText(tr("e.g. mineral_oils  (indicative, checks material compatibility)"))
+        f.addRow(tr("Fluid:"), self.edit_fluide)
 
         self.combo_position.currentIndexChanged.connect(self._on_position_change)
         # Recalcul auto quand conditions changent
@@ -2609,7 +2683,7 @@ class DialogueORing(QtWidgets.QDialog):
     # Section Matériau
     # ------------------------------------------------------------------
     def _section_materiau(self):
-        grp = QtWidgets.QGroupBox("Matériau")
+        grp = QtWidgets.QGroupBox(tr("Material"))
         layout = QtWidgets.QVBoxLayout(grp)
         form = QtWidgets.QFormLayout()
         layout.addLayout(form)
@@ -2618,7 +2692,7 @@ class DialogueORing(QtWidgets.QDialog):
         for abrev in liste_materiaux():
             m = get_materiau(abrev)
             self.combo_materiau.addItem(f"{abrev} — {m['nom_complet']}", abrev)
-        form.addRow("Matériau :", self.combo_materiau)
+        form.addRow(tr("Material:"), self.combo_materiau)
 
         self.text_materiau_info = QtWidgets.QTextEdit()
         self.text_materiau_info.setReadOnly(True)
@@ -2642,14 +2716,18 @@ class DialogueORing(QtWidgets.QDialog):
         m = get_materiau(abrev)
         t = m['temperature']
         lignes = [
-            f"T  : {t['min_C']}°C ... {t['max_C']}°C",
-            f"P  max : {m['pression_max_bar']} bar",
-            f"Durete : {m['durete_shore_A']} Shore A  (std : {m['durete_standard']})",
+            tr("T  : {min_C}\u00b0C ... {max_C}\u00b0C", min_C=t["min_C"], max_C=t["max_C"]),
+            tr("P  max : {p} bar", p=m["pression_max_bar"]),
+            tr("Hardness: {shore} Shore A  (std: {std_hardness})",
+            shore=("/".join(str(x) for x in m["durete_shore_A"])
+                  if isinstance(m["durete_shore_A"], list)
+                  else m["durete_shore_A"]),
+            std_hardness=m["durete_standard"]),
             "",
-            "Compatible   : " + ", ".join(m['compatibilite'][:5]) +
-            (" ..." if len(m['compatibilite']) > 5 else ""),
-            "Incompatible : " + ", ".join(m['incompatibilite'][:4]) +
-            (" ..." if len(m['incompatibilite']) > 4 else ""),
+            tr("Compatible   : ") + ", ".join(tr(f) for f in m["compatibilite"][:5]) +
+            (" ..." if len(m["compatibilite"]) > 5 else ""),
+            tr("Incompatible : ") + ", ".join(tr(f) for f in m["incompatibilite"][:4]) +
+            (" ..." if len(m["incompatibilite"]) > 4 else ""),
         ]
         self.text_materiau_info.setPlainText("\n".join(lignes))
         self._on_recalcul_si_resultat()
@@ -2658,7 +2736,7 @@ class DialogueORing(QtWidgets.QDialog):
     # Section Joint / Gorge
     # ------------------------------------------------------------------
     def _section_joint(self):
-        grp = QtWidgets.QGroupBox("Joint / Gorge")
+        grp = QtWidgets.QGroupBox(tr("Seal / Groove"))
         f = QtWidgets.QFormLayout(grp)
         f.setVerticalSpacing(8)
 
@@ -2668,11 +2746,11 @@ class DialogueORing(QtWidgets.QDialog):
         for std in STANDARDS:
             self.combo_standard.addItem(std, std)
         self.combo_serie = QtWidgets.QComboBox()
-        self.combo_serie.addItem("Auto", "")
+        self.combo_serie.addItem(tr("Auto"), "")
         hl_std.addWidget(self.combo_standard, 2)
-        hl_std.addWidget(QtWidgets.QLabel("  Série (d2) :"), 0)
+        hl_std.addWidget(QtWidgets.QLabel(tr("  Series (d2):")), 0)
         hl_std.addWidget(self.combo_serie, 3)
-        f.addRow("Standard :", hl_std)
+        f.addRow(tr("Standard:"), hl_std)
         self.combo_standard.currentIndexChanged.connect(self._on_standard_change)
         self.combo_serie.currentIndexChanged.connect(self._on_serie_change)
         self._on_standard_change()
@@ -2684,15 +2762,15 @@ class DialogueORing(QtWidgets.QDialog):
         self.spin_squeeze.setSuffix(" %")
         self.spin_squeeze.setDecimals(1)
         self.spin_squeeze.setValue(0.0)
-        self.spin_squeeze.setToolTip(
-            "0 = valeur cible automatique selon le type de montage\n"
-            "Toute valeur > 0 desactive le mode automatique."
-        )
+        self.spin_squeeze.setToolTip(tr(
+            "0 = automatic target value based on installation type\n"
+            "Any value > 0 disables automatic mode."
+        ))
         self.lbl_squeeze_info = QtWidgets.QLabel()
         self.lbl_squeeze_info.setWordWrap(True)
         hl_sq.addWidget(self.spin_squeeze, 0)
         hl_sq.addWidget(self.lbl_squeeze_info, 1)
-        f.addRow("Squeeze cible :", hl_sq)
+        f.addRow(tr("Target squeeze:"), hl_sq)
         self.spin_squeeze.valueChanged.connect(self._on_squeeze_info_change)
         self.combo_montage.currentIndexChanged.connect(self._on_squeeze_info_change)
         # Recalcul automatique quand montage ou squeeze changent (si résultat déjà présent)
@@ -2703,11 +2781,11 @@ class DialogueORing(QtWidgets.QDialog):
         # Ligne 3 : désignation joint calculée (mise à jour par _on_calculer)
         self.lbl_joint_designation = QtWidgets.QLabel("—")
         self.lbl_joint_designation.setStyleSheet("QLabel { font-weight: bold; }")
-        f.addRow("Joint sélectionné :", self.lbl_joint_designation)
+        f.addRow(tr("Selected seal:"), self.lbl_joint_designation)
 
         # Ligne 4 : dimensions gorge calculées
         self.lbl_joint_dims = QtWidgets.QLabel("—")
-        f.addRow("Dimensions gorge :", self.lbl_joint_dims)
+        f.addRow(tr("Groove dimensions:"), self.lbl_joint_dims)
 
         # Grades IT tolérances — désactivés temporairement
 
@@ -2929,10 +3007,10 @@ class DialogueORing(QtWidgets.QDialog):
 
         if val == 0.0:
             # ── Mode automatique : gris italique ──────────────────────
-            self.lbl_squeeze_info.setText(
-                f"\u27f3  Auto : {cible:.1f} %   "
-                f"(plage recommand\u00e9e : {pmin}\u2013{pmax} %)"
-            )
+            self.lbl_squeeze_info.setText(tr(
+                "\u27f3  Auto: {cible:.1f} %   "
+                "(recommended range: {pmin}\u2013{pmax} %)",
+                cible=cible, pmin=pmin, pmax=pmax))
             self.lbl_squeeze_info.setStyleSheet(
                 "QLabel { color: #888888; font-style: italic; }"
             )
@@ -2940,17 +3018,17 @@ class DialogueORing(QtWidgets.QDialog):
             # ── Mode manuel ───────────────────────────────────────────
             hors_plage = (val < pmin or val > pmax)
             if hors_plage:
-                self.lbl_squeeze_info.setText(
-                    f"\u270e  Manuel  \u2014  recommand\u00e9 : {pmin}\u2013{pmax} %  "
-                    f"\u26a0 hors plage"
-                )
+                self.lbl_squeeze_info.setText(tr(
+                    "\u270e  Manual \u2014  recommended: {pmin}\u2013{pmax} %  "
+                    "\u26a0 out of range",
+                    pmin=pmin, pmax=pmax))
                 self.lbl_squeeze_info.setStyleSheet(
                     "QLabel { color: #cc6600; font-weight: bold; }"
                 )
             else:
-                self.lbl_squeeze_info.setText(
-                    f"\u270e  Manuel  \u2014  recommand\u00e9 : {pmin}\u2013{pmax} %"
-                )
+                self.lbl_squeeze_info.setText(tr(
+                    "\u270e  Manual \u2014  recommended: {pmin}\u2013{pmax} %",
+                    pmin=pmin, pmax=pmax))
                 self.lbl_squeeze_info.setStyleSheet(
                     "QLabel { color: #0055aa; }"
                 )
@@ -2965,7 +3043,7 @@ class DialogueORing(QtWidgets.QDialog):
     # Section Pieces FreeCAD (2 colonnes : gorge | complementaire)
     # ------------------------------------------------------------------
     def _section_pieces(self):
-        grp = QtWidgets.QGroupBox("Pièces FreeCAD")
+        grp = QtWidgets.QGroupBox(tr("FreeCAD Parts"))
         outer = QtWidgets.QVBoxLayout(grp)
 
         if self._doc:
@@ -2987,12 +3065,12 @@ class DialogueORing(QtWidgets.QDialog):
             left_box.addWidget(self.widget_piece_principale)
 
             # LCS dans la colonne gauche (juste sous le widget principal)
-            grp_lcs = QtWidgets.QGroupBox("LCS  (plan médian gorge)")
+            grp_lcs = QtWidgets.QGroupBox(tr("LCS  (groove mid-plane)"))
             lcs_layout = QtWidgets.QFormLayout(grp_lcs)
             self.combo_lcs = QtWidgets.QComboBox()
-            self.combo_lcs.addItem("— selectionner —", None)
-            lcs_layout.addRow("LCS :", self.combo_lcs)
-            note_lcs = QtWidgets.QLabel("Plan XZ du LCS = axe Z pièce.")
+            self.combo_lcs.addItem(tr("— select —"), None)
+            lcs_layout.addRow(tr("LCS:"), self.combo_lcs)
+            note_lcs = QtWidgets.QLabel(tr("LCS XZ plane = part Z axis."))
             note_lcs.setStyleSheet("font-style: italic;")
             lcs_layout.addRow(note_lcs)
             left_box.addWidget(grp_lcs)
@@ -3009,7 +3087,7 @@ class DialogueORing(QtWidgets.QDialog):
             if self._dernier_radio_rayon:
                 self.widget_piece_complementaire.radio_rayon.setChecked(True)
             # Label "dimension de référence" sous le widget complémentaire
-            lbl_ref = QtWidgets.QLabel("(Dimension de référence pour le calcul)")
+            lbl_ref = QtWidgets.QLabel(tr("(Reference dimension for calculation)"))
             lbl_ref.setStyleSheet("font-style: italic;")
             right_box.addWidget(self.widget_piece_complementaire)
             right_box.addWidget(lbl_ref)
@@ -3023,41 +3101,41 @@ class DialogueORing(QtWidgets.QDialog):
             jeu_form.setVerticalSpacing(6)
 
             # ── Nouveau Ø pièce complémentaire (mode modification seulement) ──
-            self.lbl_d_comp_modif = QtWidgets.QLabel("Nouveau Ø pièce comp. :")
+            self.lbl_d_comp_modif = QtWidgets.QLabel(tr("New complementary part Ø:"))
             self.lbl_d_comp_modif.setVisible(False)
             self.spin_d_comp_modif = QtWidgets.QDoubleSpinBox()
             self.spin_d_comp_modif.setRange(0.1, 5000.0)
             self.spin_d_comp_modif.setSuffix(" mm")
             self.spin_d_comp_modif.setDecimals(3)
             self.spin_d_comp_modif.setVisible(False)
-            self.spin_d_comp_modif.setToolTip(
-                "Diamètre cible de la pièce complémentaire.\n"
-                "En mode modification : permet de recalculer la gorge\n"
-                "ET de mettre à jour le paramètre de la pièce complémentaire."
-            )
+            self.spin_d_comp_modif.setToolTip(tr(
+                "Target diameter of the complementary part.\n"
+                "In edit mode: recalculates the groove\n"
+                "AND updates the complementary part parameter."
+            ))
             jeu_form.addRow(self.lbl_d_comp_modif, self.spin_d_comp_modif)
             self.spin_d_comp_modif.valueChanged.connect(self._on_dims_change)
 
             # ── Mode jeu : Manuel / ISO H/g / ISO H/f ─────────────────
             hl_mode = QtWidgets.QHBoxLayout()
             self.combo_mode_jeu = QtWidgets.QComboBox()
-            self.combo_mode_jeu.addItem("Manuel",  "manuel")
+            self.combo_mode_jeu.addItem(tr("Manual"),  "manuel")
             self.combo_mode_jeu.addItem("ISO H/g", "g")
             self.combo_mode_jeu.addItem("ISO H/f", "f")
-            self.combo_mode_jeu.setToolTip(
-                "Manuel : jeu radial saisi directement.\n"
-                "ISO H/g : ajustement à jeu garanti (ex. H7/g6).\n"
-                "ISO H/f : ajustement à jeu large (ex. H8/f7).\n"
-                "En mode ISO, le jeu minimal calculé est utilisé automatiquement."
-            )
-            self.lbl_grade_arbre = QtWidgets.QLabel("Grade arbre :")
+            self.combo_mode_jeu.setToolTip(tr(
+                "Manual: direct radial clearance entry.\n"
+                "ISO H/g: guaranteed clearance fit (e.g. H7/g6).\n"
+                "ISO H/f: loose clearance fit (e.g. H8/f7).\n"
+                "In ISO mode, the calculated minimum clearance is used automatically."
+            ))
+            self.lbl_grade_arbre = QtWidgets.QLabel(tr("Shaft grade:"))
             self.combo_grade_arbre = QtWidgets.QComboBox()
             for _g in (6, 7, 8, 9):
                 self.combo_grade_arbre.addItem(f"IT{_g}", _g)
             self.combo_grade_arbre.setCurrentIndex(1)   # IT7 par défaut
-            self.combo_grade_arbre.setToolTip(
-                "Grade IT de l'arbre.\nL'alésage H prend le grade + 1 automatiquement."
-            )
+            self.combo_grade_arbre.setToolTip(tr(
+                "Shaft IT grade.\nThe bore H takes grade + 1 automatically."
+            ))
             self.lbl_designation_iso = QtWidgets.QLabel("")
             self.lbl_designation_iso.setStyleSheet("font-weight: bold; color: #335599;")
             hl_mode.addWidget(self.combo_mode_jeu)
@@ -3065,7 +3143,7 @@ class DialogueORing(QtWidgets.QDialog):
             hl_mode.addWidget(self.combo_grade_arbre)
             hl_mode.addWidget(self.lbl_designation_iso)
             hl_mode.addStretch()
-            jeu_form.addRow("Mode jeu :", hl_mode)
+            jeu_form.addRow(tr("Clearance mode:"), hl_mode)
 
             # Masquer grade par défaut (mode Manuel)
             self.lbl_grade_arbre.setVisible(False)
@@ -3078,17 +3156,17 @@ class DialogueORing(QtWidgets.QDialog):
             self.spin_jeu.setSuffix(" mm")
             self.spin_jeu.setDecimals(3)
             self.spin_jeu.setValue(0.1)
-            self.spin_jeu.setToolTip(
-                "Jeu radial entre arbre et alésage.\n"
-                "Gorge arbre   : D_arbre   = D_alésage - 2 × jeu\n"
-                "Gorge alésage : D_alésage = D_arbre   + 2 × jeu\n"
-                "(Désactivé en mode ISO — valeur calculée automatiquement.)"
-            )
-            jeu_form.addRow("Jeu radial :", self.spin_jeu)
+            self.spin_jeu.setToolTip(tr(
+                "Radial clearance between shaft and bore.\n"
+                "Shaft groove   : D_shaft = D_bore - 2 × clearance\n"
+                "Bore groove    : D_bore  = D_shaft + 2 × clearance\n"
+                "(Disabled in ISO mode \u2014 value calculated automatically.)"
+            ))
+            jeu_form.addRow(tr("Radial clearance:"), self.spin_jeu)
 
             self.label_d_principale_derive = QtWidgets.QLabel("—")
             self.label_d_principale_derive.setStyleSheet("font-weight: bold;")
-            jeu_form.addRow("⇒ D pièce principale :", self.label_d_principale_derive)
+            jeu_form.addRow(tr("\u21d2 D main part:"), self.label_d_principale_derive)
             outer.addLayout(jeu_form)
 
             # ── Diagramme ajustement ISO ────────────────────────────────
@@ -3141,10 +3219,10 @@ class DialogueORing(QtWidgets.QDialog):
             self._on_recalcul_si_resultat()
 
         else:
-            outer.addWidget(QtWidgets.QLabel(
-                "Aucun document FreeCAD actif.\n"
-                "Utilisez le diamètre manuel dans la section Joint / Gorge."
-            ))
+            outer.addWidget(QtWidgets.QLabel(tr(
+                "No active FreeCAD document.\n"
+                "Use the manual diameter in the Seal / Groove section."
+            )))
 
         return grp
 
@@ -3272,7 +3350,7 @@ class DialogueORing(QtWidgets.QDialog):
 
         # Rafraîchir le combo LCS
         self.combo_lcs.clear()
-        self.combo_lcs.addItem("— selectionner —", None)
+        self.combo_lcs.addItem(tr("— select —"), None)
         if body_principal:
             lcs_list  = lister_lcs(body_principal)
             deja_pris = _lcs_deja_utilises(self._doc)
@@ -3285,8 +3363,26 @@ class DialogueORing(QtWidgets.QDialog):
                     deja_pris = deja_pris - {lcs_modif}
                 except Exception:
                     pass
-            lcs_libres = [lcs for lcs in lcs_list
-                          if lcs.Label not in deja_pris]
+            # Utiliser lister_lcs_libres (centralisé, même logique que
+            # lister_bodies_valides_gorge) pour garantir la cohérence
+            from .utils import lister_lcs_libres as _lcs_libres_fn
+            lcs_libres = _lcs_libres_fn(body_principal, self._doc)
+            # En mode modification, réinclure le LCS du joint modifié
+            # (il est "occupé" mais on peut le modifier)
+            if self._part_en_modification is not None:
+                try:
+                    from .metadata import lire_metadonnees
+                    m = lire_metadonnees(self._part_en_modification)
+                    lcs_modif_label = m.get('lcs_label', '')
+                    if lcs_modif_label:
+                        deja_presents = {l.Label for l in lcs_libres}
+                        for lcs in lcs_list:
+                            if (lcs.Label == lcs_modif_label
+                                    and lcs.Label not in deja_presents):
+                                lcs_libres.append(lcs)
+                                break
+                except Exception:
+                    pass
             for lcs in lcs_libres:
                 self.combo_lcs.addItem(lcs.Label, lcs)
             # Auto-sélection si un seul LCS disponible
@@ -3406,7 +3502,7 @@ class DialogueORing(QtWidgets.QDialog):
                     if hasattr(self, '_diagramme_ajust'):
                         self._diagramme_ajust.clear()
             else:
-                self.lbl_designation_iso.setText("(saisir Ø d'abord)")
+                self.lbl_designation_iso.setText(tr("(enter \u00d8 first)"))
                 if hasattr(self, '_diagramme_ajust'):
                     self._diagramme_ajust.clear()
                     self._diagramme_ajust.setVisible(True)
@@ -3529,29 +3625,29 @@ class DialogueORing(QtWidgets.QDialog):
         label_d  = "D_alesage" if position == 'arbre' else "D_arbre"
         lignes = [
             "=" * 54,
-            f"  Joint  : {r.standard} / serie {r.serie}",
+            tr("  Seal  : {std} / series {series}", std=r.standard, series=r.serie),
             f"  d1 = {r.d1} mm   d2 = {r.d2} mm"
             + (f"   [{r.code_joint}]" if r.code_joint else ""),
-            f"  Stretch ({label_d}) : {r.stretch_pct:.2f} %",
+            tr("  Stretch ({label}): {st:.2f} %", label=label_d, st=r.stretch_pct),
             "-" * 54,
-            f"  Gorge  : h = {r.h:.3f} mm   b = {r.b:.3f} mm",
-            f"  Squeeze: {r.squeeze_pct:.1f} %   Fill: {r.fill_pct:.1f} %",
-            f"  Ø fond de gorge : {r.rayon_gorge * 2:.1f} mm",
+            tr("  Groove : h = {h:.3f} mm   b = {b:.3f} mm", h=r.h, b=r.b),
+            tr("  Squeeze: {sq:.1f} %   Fill: {fill:.1f} %", sq=r.squeeze_pct, fill=r.fill_pct),
+            tr("  \u00d8 groove bottom: {d:.1f} mm", d=r.rayon_gorge * 2),
             "-" * 54,
-            f"  Extrusion : {r.risque_extrusion}"
-            + ("  BAGUE REQUISE" if r.bague_antiextrusion else ""),
+            tr("  Extrusion: {risk}", risk=r.risque_extrusion)
+            + ("  " + tr("RING REQUIRED") if r.bague_antiextrusion else ""),
         ]
         if r.alertes:
-            lignes += ["-" * 54, "  ALERTES :"]
+            lignes += ["-" * 54, tr("  ALERTS:")]
             for a in r.alertes:
                 lignes.append(f"    - {a}")
         if r.avertissements:
-            lignes += ["-" * 54, "  Avertissements :"]
+            lignes += ["-" * 54, tr("  Warnings:")]
             for a in r.avertissements:
                 lignes.append(f"    - {a}")
         lignes += [
             "=" * 54,
-            f"  {'OK VALIDE' if r.valide else 'INVALIDE — voir alertes'}",
+            (tr("  OK VALID") if r.valide else tr("  INVALID \u2014 see alerts")),
             "=" * 54,
         ]
         return "\n".join(lignes)
@@ -3726,9 +3822,9 @@ class DialogueORing(QtWidgets.QDialog):
         d_compl = self._get_diametre_calcul()
         if not d_compl or d_compl <= 0:
             message_erreur("ORing",
-                "Diametre de la piece complementaire non renseigne.\n"
-                "Selectionner le body et le parametre dans l'onglet 4,\n"
-                "ou saisir le diametre manuellement dans l'onglet 3."
+                tr("Complementary part diameter not set.\n"
+                "Select the body and parameter in the Parts tab,\n"
+                "or enter the diameter manually.")
             )
             return
         jeu = self._get_jeu_radial()
@@ -3763,19 +3859,19 @@ class DialogueORing(QtWidgets.QDialog):
                 nom_existant = part_existant.Label if part_existant else '?'
                 m = lire_metadonnees(part_existant) if part_existant else {}
                 message_erreur(
-                    "ORing — Joint déjà existant",
-                    f"Un joint est déjà présent à cet emplacement :\n\n"
-                    f"  Pièce   : {m.get('body_gorge_label', '?')}\n"
-                    f"  LCS     : {m.get('lcs_label', '?')}\n"
-                    f"  Joint   : {m.get('standard', '?')} / "
-                    f"{m.get('serie', '?')}  "
-                    f"d2 = {m.get('d2_mm', 0.0):.2f} mm\n"
-                    f"  Squeeze : {m.get('squeeze_cible_pct', 0.0):.1f} %  "
-                    f"(réel : {m.get('squeeze_reel_pct', 0.0):.1f} %)\n"
-                    f"  Gorge   : h = {m.get('h_mm', 0.0):.3f} mm  "
-                    f"b = {m.get('b_mm', 0.0):.3f} mm\n\n"
-                    f"  → Part existant : « {nom_existant} »\n\n"
-                    "Supprimez l'assemblage existant pour en insérer un nouveau."
+                    tr("ORing — Existing seal"),
+                    tr("A seal already exists at this location:\n\n"
+                    "  Part   : {body}\n  LCS    : {lcs}\n"
+                    "  Seal   : {std} / {series}  d2 = {d2:.2f} mm\n"
+                    "  Squeeze: {sq_target:.1f} %  (actual: {sq_real:.1f} %)\n"
+                    "  Groove : h = {h:.3f} mm  b = {b:.3f} mm\n\n"
+                    "  \u2192 Existing part: \u00ab {name} \u00bb\n\n"
+                    "Delete the existing assembly before inserting a new one.",
+                    body=m.get("body_gorge_label","?"), lcs=m.get("lcs_label","?"),
+                    std=m.get("standard","?"), series=m.get("serie","?"),
+                    d2=m.get("d2_mm",0.0), sq_target=m.get("squeeze_cible_pct",0.0),
+                    sq_real=m.get("squeeze_reel_pct",0.0),
+                    h=m.get("h_mm",0.0), b=m.get("b_mm",0.0), name=nom_existant)
                 )
                 return
 
@@ -3787,7 +3883,27 @@ class DialogueORing(QtWidgets.QDialog):
                 f"Position : {position}"
             )
             # ── 0. Mise a jour du parametre de la piece principale ────────
-            if hasattr(self, 'widget_piece_principale'):
+            # Ignorée si seul le matériau change (fast-path détecté plus bas).
+            # On pré-détecte ici pour conditionner la section 0.
+            _meta_preflight = {}
+            if self._part_en_modification is not None:
+                try:
+                    from .metadata import lire_metadonnees as _lmn_pre
+                    _meta_preflight = _lmn_pre(self._part_en_modification)
+                except Exception:
+                    pass
+            _d_princ_ref = float(_meta_preflight.get('d_gorge_ref_mm', -1.0))
+            _skip_section0 = (
+                self._part_en_modification is not None
+                and _d_princ_ref >= 0.0
+                and abs(d_princ - _d_princ_ref) < 0.001
+                and (_meta_preflight.get('standard','') ==
+                     (self.combo_standard.currentData() or ''))
+                and (_meta_preflight.get('serie','') ==
+                     (self.combo_serie.currentData() or ''))
+                and abs(float(_meta_preflight.get('jeu_radial_mm', -1.0)) - jeu) < 0.001
+            )
+            if not _skip_section0 and hasattr(self, 'widget_piece_principale'):
                 nom_param  = _get_param_gorge() or None
                 est_rayon  = _get_param_gorge_rayon()
                 print(
@@ -3817,9 +3933,10 @@ class DialogueORing(QtWidgets.QDialog):
                         self._doc.recompute()
                     else:
                         message_erreur(
-                            "ORing — Parametre non mis a jour",
-                            f"Impossible de modifier '{nom_param}' :\n{msg}\n\n"
-                            "L'insertion continue avec le diametre actuel."
+                            tr("ORing — Parameter not updated"),
+                            tr("Cannot modify '{param}':\n{msg}\n\n"
+                            "Insertion continues with the current diameter.",
+                            param=nom_param, msg=msg)
                         )
 
             # ── 0b. Mise à jour paramètre pièce complémentaire (mode modif) ──
@@ -3863,11 +3980,11 @@ class DialogueORing(QtWidgets.QDialog):
                                 self._doc.recompute()
                             else:
                                 message_erreur(
-                                    "ORing — Paramètre comp non mis à jour",
-                                    f"Impossible de modifier '{_param_comp}' "
-                                    f"sur le body '{_body_comp_label}' :\n{_msg}\n\n"
-                                    "La gorge est recalculée avec le nouveau diamètre\n"
-                                    "mais le body complémentaire n'a pas été modifié."
+                                    tr("ORing — Complementary part parameter not updated"),
+                                    tr("Cannot modify '{param}' on body '{body}':\n{msg}\n\n"
+                                    "The groove is recalculated with the new diameter\n"
+                                    "but the complementary body was not modified.",
+                                    param=_param_comp, body=_body_comp_label, msg=_msg)
                                 )
                         else:
                             print(
@@ -3885,35 +4002,97 @@ class DialogueORing(QtWidgets.QDialog):
 
             if self._part_en_modification is not None:
                 # ── Mode modification : mettre à jour les géométries existantes ─
-                # Forcer un recalcul avec les valeurs UI courantes pour être certain
-                # que self._resultat reflète le diamètre affiché (et non l'ancien).
-                self._on_calculer()
-                if not self._resultat or not self._resultat.valide:
-                    message_erreur("ORing — Recalcul",
-                        "Le recalcul avec le nouveau diamètre a échoué ou produit\n"
-                        "un résultat invalide. Vérifier les paramètres.\n\n"
-                        + ('\n'.join(self._resultat.alertes) if self._resultat else '')
-                    )
-                    return
                 from .metadata import lire_metadonnees
                 meta_existante = lire_metadonnees(self._part_en_modification)
-                # Capturer AVANT ecrire_metadonnees (qui écrasera avec la nouvelle valeur)
-                self._d_gorge_ref_avant_modif = float(
-                    meta_existante.get('d_gorge_ref_mm', d_princ)
+
+                # ── Fast-path : seul le matériau a changé ─────────────────────
+                # Si toutes les dimensions sont identiques aux métadonnées stockées
+                # et que seul le matériau diffère, on met à jour uniquement la
+                # couleur et les métadonnées — gorge et tore ne sont pas retouchés.
+                _mat_ancien  = meta_existante.get('materiau', '')
+                _mat_nouveau = self.combo_materiau.currentData() or ''
+                _d2_ancien   = float(meta_existante.get('d2_mm', 0.0))
+                _d2_nouveau  = float(self._resultat.d2) if (
+                    self._resultat and self._resultat.d2) else 0.0
+                _sq_ancien   = float(meta_existante.get('squeeze_cible_pct', 0.0))
+                _sq_nouveau  = float(self.spin_squeeze.value())
+                _jeu_ancien  = float(meta_existante.get('jeu_radial_mm', 0.0))
+                _jeu_nouveau = float(jeu)
+                _std_ancien  = meta_existante.get('standard', '')
+                _std_nouveau = self.combo_standard.currentData() or ''
+                _serie_ancienne = meta_existante.get('serie', '')
+                _serie_nouvelle = self.combo_serie.currentData() or ''
+
+                _seul_materiau = (
+                    _mat_ancien  != _mat_nouveau          # matériau a changé
+                    and abs(_d2_nouveau - _d2_ancien) < 0.001  # d2 identique
+                    and abs(_sq_nouveau - _sq_ancien) < 0.01   # squeeze identique
+                    and abs(_jeu_nouveau - _jeu_ancien) < 0.001 # jeu identique
+                    and _std_nouveau == _std_ancien             # même standard
+                    and _serie_nouvelle == _serie_ancienne      # même série
+                    and abs(d_princ - float(meta_existante.get('d_gorge_ref_mm', d_princ))) < 0.001
                 )
-                _mettre_a_jour_geometries_existantes(
-                    doc            = self._doc,
-                    r              = self._resultat,
-                    position       = position,
-                    d_comp_mm      = d_compl,
-                    meta_existante = meta_existante,
-                    part           = self._part_en_modification,
-                )
-                # Récupérer les références existantes pour les métadonnées
-                sketch_nom     = meta_existante.get('sketch_gorge_name', '')
-                sketch         = self._doc.getObject(sketch_nom) if sketch_nom else None
-                body_oring_nom = meta_existante.get('body_oring_name', '')
-                body_oring     = self._doc.getObject(body_oring_nom) if body_oring_nom else None
+
+                if _seul_materiau:
+                    print(f"[ORing] Fast-path matériau seul : "
+                          f"'{_mat_ancien}' → '{_mat_nouveau}'")
+                    # Mettre à jour uniquement la couleur du tore
+                    body_oring_nom = meta_existante.get('body_oring_name', '')
+                    body_oring = (self._doc.getObject(body_oring_nom)
+                                  if body_oring_nom else None)
+                    if body_oring is None:
+                        for _child in getattr(self._part_en_modification, 'Group', []):
+                            if (_child.TypeId == 'PartDesign::Body'
+                                    and _child.Label.startswith('ORing')):
+                                body_oring = _child
+                                break
+                    if body_oring is not None:
+                        from .oring_3d import appliquer_couleur_materiau
+                        appliquer_couleur_materiau(body_oring, _mat_nouveau)
+                    # Mettre à jour uniquement les métadonnées matériau
+                    from .metadata import ecrire_metadonnees
+                    _meta_new = dict(meta_existante)
+                    _meta_new['materiau'] = _mat_nouveau
+                    _meta_new['type_montage'] = (self.combo_montage.currentData()
+                                                  or meta_existante.get('type_montage', ''))
+                    _meta_new['pression_bar'] = float(self.spin_pression.value())
+                    _meta_new['temperature_C'] = float(self.spin_temperature.value())
+                    ecrire_metadonnees(self._part_en_modification, _meta_new)
+                    sketch_nom = meta_existante.get('sketch_gorge_name', '')
+                    sketch     = self._doc.getObject(sketch_nom) if sketch_nom else None
+                    # Sauter tout le reste du flux (gorge, tore, paramètres pièce)
+                    # en allant directement au post-traitement
+                    _fast_path_materiau = True
+                else:
+                    _fast_path_materiau = False
+
+                if not _fast_path_materiau:
+                    # Forcer un recalcul avec les valeurs UI courantes
+                    self._on_calculer(_force=True)
+                    if not self._resultat or not self._resultat.valide:
+                        message_erreur(tr("ORing — Recalculation"),
+                            tr("Recalculation with the new diameter failed or produced\n"
+                            "an invalid result. Check the parameters.")
+                            + "\n\n" + ('\n'.join(self._resultat.alertes) if self._resultat else '')
+                        )
+                        return
+                    # Capturer AVANT ecrire_metadonnees
+                    self._d_gorge_ref_avant_modif = float(
+                        meta_existante.get('d_gorge_ref_mm', d_princ)
+                    )
+                    _mettre_a_jour_geometries_existantes(
+                        doc            = self._doc,
+                        r              = self._resultat,
+                        position       = position,
+                        d_comp_mm      = d_compl,
+                        meta_existante = meta_existante,
+                        part           = self._part_en_modification,
+                    )
+                    # Récupérer les références existantes pour les métadonnées
+                    sketch_nom     = meta_existante.get('sketch_gorge_name', '')
+                    sketch         = self._doc.getObject(sketch_nom) if sketch_nom else None
+                    body_oring_nom = meta_existante.get('body_oring_name', '')
+                    body_oring     = self._doc.getObject(body_oring_nom) if body_oring_nom else None
 
             else:
                 # ── Mode création : générer sketch + groove + oring ────────────
@@ -4088,7 +4267,7 @@ class DialogueORing(QtWidgets.QDialog):
 
             # ── Message de succès ────────────────────────────────────────
             if self._part_en_modification is not None:
-                msg_titre = "ORing — Modification appliquée"
+                msg_titre = tr("ORing — Edit applied")
                 # Vérifier si des erreurs TNP persistent
                 _tnp_warn = ''
                 try:
@@ -4104,17 +4283,20 @@ class DialogueORing(QtWidgets.QDialog):
                 except Exception:
                     pass
                 msg_corps = (
-                    f"Gorge et joint 3D mis à jour avec succès.\n\n"
-                    f"  Standard / Série  : {self.combo_standard.currentData()} "
-                    f"/ {self.combo_serie.currentData() or 'Auto'}\n"
-                    f"  d2 = {float(self._resultat.d2):.2f} mm  "
-                    f"h = {float(self._resultat.h):.3f} mm  "
-                    f"b = {float(self._resultat.b):.3f} mm\n"
-                    f"  Squeeze réel : {float(self._resultat.squeeze_pct):.1f} %  "
-                    f"Fill : {float(self._resultat.fill_pct):.1f} %\n\n"
-                    f"  D pièce principale     : {d_princ:.3f} mm\n"
-                    f"  D pièce complémentaire : {d_compl:.3f} mm\n"
-                    f"  Jeu radial             : {jeu:.3f} mm"
+                    tr("Groove and 3D seal updated successfully.\n\n"
+                    "  Standard / Series: {std} / {series}\n"
+                    "  d2 = {d2:.2f} mm  h = {h:.3f} mm  b = {b:.3f} mm\n"
+                    "  Actual squeeze: {sq:.1f} %  Fill: {fill:.1f} %\n\n"
+                    "  D main part          : {d_princ:.3f} mm\n"
+                    "  D complementary part : {d_compl:.3f} mm\n"
+                    "  Radial clearance     : {jeu:.3f} mm",
+                    std=self.combo_standard.currentData(),
+                    series=self.combo_serie.currentData() or tr("Auto"),
+                    d2=float(self._resultat.d2),
+                    h=float(self._resultat.h), b=float(self._resultat.b),
+                    sq=float(self._resultat.squeeze_pct),
+                    fill=float(self._resultat.fill_pct),
+                    d_princ=d_princ, d_compl=d_compl, jeu=jeu)
                     + _tnp_warn
                 )
                 self._annuler_mode_modification()   # reset titre + bouton
@@ -4133,11 +4315,12 @@ class DialogueORing(QtWidgets.QDialog):
             else:
                 _body_label_pour_lies = None
                 msg_titre = "ORing"
-                msg_corps = (
-                    f"Gorge generee avec succes !\n\n"
-                    f"D piece principale     : {d_princ:.3f} mm\n"
-                    f"D piece complementaire : {d_compl:.3f} mm\n"
-                    f"Jeu radial             : {jeu:.3f} mm"
+                msg_corps = tr(
+                    "Groove generated successfully!\n\n"
+                    "D main part          : {d_princ:.3f} mm\n"
+                    "D complementary part : {d_compl:.3f} mm\n"
+                    "Radial clearance     : {jeu:.3f} mm",
+                    d_princ=d_princ, d_compl=d_compl, jeu=jeu
                 )
 
             # FIX #8 : mémoriser le choix diam/rayon pour les prochaines insertions
@@ -4174,11 +4357,11 @@ class DialogueORing(QtWidgets.QDialog):
                 _dlg_attente = None
                 try:
                     _dlg_attente = QtWidgets.QMessageBox(self)
-                    _dlg_attente.setWindowTitle("ORing — Mise à jour en cours")
-                    _dlg_attente.setText(
-                        "Mise à jour des joints liés en cours…\n"
-                        "Veuillez patienter."
-                    )
+                    _dlg_attente.setWindowTitle(tr("ORing \u2014 Update in progress"))
+                    _dlg_attente.setText(tr(
+                        "Updating linked seals...\n"
+                        "Please wait."
+                    ))
                     _dlg_attente.setStandardButtons(QtWidgets.QMessageBox.NoButton)
                     _dlg_attente.setModal(True)
                     _dlg_attente.show()
@@ -4186,10 +4369,11 @@ class DialogueORing(QtWidgets.QDialog):
                     _dlg_attente = None
 
                 def _travail_lourd():
+                    _std_changes = []
                     try:
-                        self._maj_joints_lies(
+                        _std_changes = self._maj_joints_lies(
                             _body_label_pour_lies,
-                            dlg_progression=_dlg_attente)
+                            dlg_progression=_dlg_attente) or []
                     except Exception as _e_lies:
                         print(f"[ORing] AVERT _maj_joints_lies : {_e_lies}")
 
@@ -4211,6 +4395,32 @@ class DialogueORing(QtWidgets.QDialog):
                         _derives = None
                     self._onglet_initial(derives_precalcules=_derives)
 
+                    # ── Alerte changements de série / standard ────────────────
+                    # Affiché après _onglet_initial pour que le tableau soit déjà
+                    # rafraîchi quand l'utilisateur lit le message.
+                    if _std_changes:
+                        _lignes = []
+                        for _ch in _std_changes:
+                            _lignes.append(
+                                f"\u2022 {_ch['label']} :\n"
+                                f"   {_ch['std_avant']} \u00b7 {_ch['serie_avant']}"
+                                f"  \u2192  {_ch['std_apres']} \u00b7 {_ch['serie_apres']}"
+                            )
+                        _msg_std = (
+                            "\u26a0  Lors de la mise à jour automatique des joints liés,\n"
+                            "la série d'origine n'offrait aucune solution adaptée.\n"
+                            "Les joints suivants ont été mis à jour avec les\n"
+                            "caractéristiques du joint modifié :\n\n"
+                            + "\n\n".join(_lignes)
+                            + "\n\nVérifiez la compatibilité de ces joints\n"
+                              "avec votre assemblage avant utilisation."
+                        )
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "ORing \u2014 Changement de série / standard",
+                            _msg_std,
+                        )
+
                 # 50 ms laisse le temps à Qt de rendre le dialogue
                 QtCore.QTimer.singleShot(50, _travail_lourd)
 
@@ -4218,7 +4428,7 @@ class DialogueORing(QtWidgets.QDialog):
 
         except Exception:
             import traceback
-            message_erreur("ORing — Erreur generation", traceback.format_exc())
+            message_erreur(tr("ORing — Generation error"), traceback.format_exc())
 
     @staticmethod
     def _restaurer_body_actif(doc, body_label=None):
@@ -4302,6 +4512,7 @@ class DialogueORing(QtWidgets.QDialog):
 
     def closeEvent(self, event):
         """Restaure exactement l'état visuel d'origine avant fermeture."""
+        self._fin_highlight()   # retirer la surbrillance du joint
         _restaurer_snapshot(self._doc)
         if hasattr(self, 'table_joints'):
             self.table_joints._locked_row = -1
@@ -4313,6 +4524,7 @@ class DialogueORing(QtWidgets.QDialog):
 
     def reject(self):
         """Fermeture par Échap ou bouton Fermer."""
+        self._fin_highlight()   # retirer la surbrillance du joint
         _restaurer_snapshot(self._doc)
         self._restaurer_body_actif(self._doc, self._get_body_gorge_label())
         self._maj_techdraw(self._doc)
@@ -4423,12 +4635,43 @@ def _est_en_erreur(obj):
 
 
 #: Types de features d'habillage susceptibles de perdre leurs références TNP
+# Features dont les références topologiques (arêtes, faces, sommets) peuvent
+# être invalidées lors d'un recompute de gorge. Elles sont suspendues avant
+# le recompute et réactivées après sur une géométrie stable.
+#
+# Catégorie 1 — Habillage (référencent des arêtes via Base)
 _TYPES_HABILLAGE = frozenset({
     'PartDesign::Chamfer',
     'PartDesign::Fillet',
     'PartDesign::Draft',
     'PartDesign::RoundedCorners',
     'PartDesign::Thickness',
+    'PartDesign::Hole',          # Plan d'accroche par face
+})
+
+# Catégorie 2 — Géométries de référence (plans/axes/points auxiliaires)
+# référencent des faces ou arêtes via MapPathParameter / Support
+_TYPES_DATUM = frozenset({
+    'PartDesign::Plane',
+    'PartDesign::Line',
+    'PartDesign::Point',
+    'PartDesign::CoordinateSystem',
+    'Part::Datum',
+})
+
+# Catégorie 3 — Sketches avec attachement face/arête
+# (MapMode != Origin implique un Support = (feat, ['FaceN']) ou ['EdgeN'])
+_TYPES_SKETCH_ATTACHE = frozenset({
+    'Sketcher::SketchObject',
+})
+
+# Modes d'attachement qui impliquent une référence topologique instable
+_MAPMODES_STABLES = frozenset({
+    'Deactivated',   # pas d'attachement
+    'Origin',        # plan absolu
+    'ObjectXY', 'ObjectXZ', 'ObjectYZ',   # plan d'un LCS/origin
+    'ObjectX', 'ObjectY', 'ObjectZ',       # axe d'un LCS/origin
+    '',
 })
 
 
@@ -4514,57 +4757,218 @@ def _empreintes_compatibles(e1, e2, tol=0.5):
     return score, score >= 30
 
 
+def _empreinte_subshape(obj, ref_name):
+    """
+    Calcule une empreinte géométrique pour une sous-forme (Face ou Edge)
+    identifiée par son nom ('FaceN' ou 'EdgeN') dans la Shape de obj.
+    Retourne un dict avec type, com, surface/longueur, normal (si face).
+    """
+    try:
+        if ref_name.startswith('Face'):
+            idx = int(ref_name.replace('Face', '')) - 1
+            face = obj.Shape.Faces[idx]
+            com  = face.CenterOfMass
+            try:
+                norm = face.normalAt(0, 0)
+                normal = (round(norm.x, 3), round(norm.y, 3), round(norm.z, 3))
+            except Exception:
+                normal = None
+            return {
+                'type':    'Face',
+                'ref':     ref_name,
+                'com':     (round(com.x, 3), round(com.y, 3), round(com.z, 3)),
+                'area':    round(face.Area, 3),
+                'normal':  normal,
+            }
+        elif ref_name.startswith('Edge'):
+            idx = int(ref_name.replace('Edge', '')) - 1
+            edge = obj.Shape.Edges[idx]
+            return _empreinte_arete(edge)
+        elif ref_name.startswith('Vertex'):
+            idx = int(ref_name.replace('Vertex', '')) - 1
+            v   = obj.Shape.Vertexes[idx]
+            p   = v.Point
+            return {
+                'type': 'Vertex',
+                'ref':  ref_name,
+                'com':  (round(p.x, 3), round(p.y, 3), round(p.z, 3)),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def _empreinte_subshape_compatible(e1, e2, tol=0.5):
+    """Compare deux empreintes de sous-formes (Face/Edge/Vertex)."""
+    if e1 is None or e2 is None:
+        return 0, False
+    if e1.get('type') != e2.get('type'):
+        return 0, False
+    t = e1['type']
+    if t == 'Face':
+        # Centre de masse proche
+        import math
+        d = math.sqrt(sum((a-b)**2 for a,b in zip(e1['com'], e2['com'])))
+        if d > tol * 20:
+            return 0, False
+        score = max(0, 40 - int(d / tol * 4))
+        # Aire proche
+        da = abs(e1.get('area', 0) - e2.get('area', 0))
+        if da > e1.get('area', 1) * 0.5:
+            return score, False
+        score += max(0, 30 - int(da / max(e1.get('area', 1), 1e-6) * 60))
+        # Normale proche
+        if e1.get('normal') and e2.get('normal'):
+            dn = math.sqrt(sum((a-b)**2 for a,b in
+                               zip(e1['normal'], e2['normal'])))
+            score += max(0, 30 - int(dn * 30))
+        return score, score >= 30
+    elif t in ('Edge', 'Circle', 'Line', 'Other'):
+        return _empreintes_compatibles(e1, e2, tol)
+    elif t == 'Vertex':
+        import math
+        d = math.sqrt(sum((a-b)**2 for a,b in zip(e1['com'], e2['com'])))
+        score = max(0, 100 - int(d / tol * 20))
+        return score, score >= 40
+    return 0, False
+
+
+def _lire_references_tnp(obj):
+    """
+    Lit toutes les références topologiques d'un objet FreeCAD
+    susceptibles d'être invalidées par le TNP.
+
+    Retourne une liste de dicts :
+      {'prop': nom_propriété, 'base_feat': objet_source,
+       'refs': [{'nom': 'Face7', 'empreinte': {...}}, ...]}
+    """
+    resultats = []
+    tipo = getattr(obj, 'TypeId', '')
+
+    # ── Habillage : propriété Base = (feat, ['Edge5', ...]) ───────────────
+    if tipo in _TYPES_HABILLAGE:
+        base_prop = getattr(obj, 'Base', None)
+        if isinstance(base_prop, (list, tuple)) and len(base_prop) == 2:
+            base_feat, ref_names = base_prop
+            if hasattr(base_feat, 'Shape') and base_feat.Shape is not None:
+                refs = []
+                for rname in ref_names:
+                    refs.append({'nom': rname,
+                                 'empreinte': _empreinte_subshape(base_feat, rname)})
+                if refs:
+                    resultats.append({
+                        'prop': 'Base',
+                        'base_feat': base_feat,
+                        'refs': refs,
+                    })
+
+    # ── Datum et sketches : propriété MapPathParameter / Support ──────────
+    elif tipo in _TYPES_DATUM or tipo in _TYPES_SKETCH_ATTACHE:
+        # Vérifier si l'attachement est stable (plans d'origin/LCS)
+        map_mode = getattr(obj, 'MapMode', '')
+        if map_mode in _MAPMODES_STABLES:
+            return []  # Attachement stable → pas de TNP
+
+        # Lire le Support = (feat, ['FaceN']) ou MapPathParameter
+        for prop_name in ('Support', 'MapPathParameter', 'AttachmentSupport'):
+            prop = getattr(obj, prop_name, None)
+            if prop is None:
+                continue
+            # Support peut être une liste de tuples [(feat, ['Face7']), ...]
+            # ou un simple tuple (feat, ['Face7'])
+            if isinstance(prop, (list, tuple)) and len(prop) > 0:
+                pairs = prop if isinstance(prop[0], (list, tuple)) else [prop]
+                for pair in pairs:
+                    if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
+                        continue
+                    base_feat, ref_names = pair
+                    if not (hasattr(base_feat, 'Shape')
+                            and base_feat.Shape is not None):
+                        continue
+                    refs = []
+                    for rname in (ref_names or []):
+                        refs.append({'nom': rname,
+                                     'empreinte': _empreinte_subshape(
+                                         base_feat, rname)})
+                    if refs:
+                        resultats.append({
+                            'prop': prop_name,
+                            'base_feat': base_feat,
+                            'refs': refs,
+                        })
+                break  # prendre la première propriété trouvée
+
+    return resultats
+
+
 def _suspendre_habillage(body):
     """
-    Suspend (Suppressed=True) toutes les features d'habillage du body
-    AVANT le recompute de la gorge, pour éviter qu'elles ne plantent
-    sur des arêtes devenues invalides après la modification topologique.
+    Protège TOUTES les features du body dont les références topologiques
+    pourraient être invalidées lors d'un recompute de gorge :
 
-    Retourne la liste des features suspendues (pour les réactiver ensuite).
-    La liste inclut aussi l'empreinte des arêtes référencées pour le
-    fallback de remapping géométrique si la réactivation échoue.
+      - Habillage (Chamfer, Fillet, Draft, Thickness, Hole)
+        → suspendues (Suppressed=True)
+      - Datum (Plan, Axe, Point, LCS auxiliaires) avec attachement face/arête
+        → détachées (MapMode → 'Deactivated')
+      - Sketches avec attachement face/arête (MapMode non stable)
+        → détachés (MapMode → 'Deactivated')
+
+    Retourne la liste des objets protégés avec leur état de restauration.
     """
     suspendues = []
     for obj in getattr(body, 'Group', []):
-        if getattr(obj, 'TypeId', '') not in _TYPES_HABILLAGE:
-            continue
-        try:
-            # Vérifier si la feature supporte Suppressed
-            if not hasattr(obj, 'Suppressed'):
+        tipo = getattr(obj, 'TypeId', '')
+
+        # ── Exclure les sketches de gorge ORing (ne jamais les toucher) ────
+        if tipo in _TYPES_SKETCH_ATTACHE:
+            label = getattr(obj, 'Label', '')
+            if (label.startswith('GorgeArbre_') or
+                    label.startswith('GorgeAlesage_') or
+                    label.startswith('SketchORing')):
                 continue
 
-            # Capturer l'empreinte des arêtes AVANT suspension
-            base_prop = getattr(obj, 'Base', None)
-            edges_snap = []
-            if isinstance(base_prop, (list, tuple)) and len(base_prop) == 2:
-                base_feat, edge_names = base_prop
-                if hasattr(base_feat, 'Shape') and base_feat.Shape is not None:
-                    for ename in edge_names:
-                        try:
-                            idx = int(ename.replace('Edge', '')) - 1
-                            edge = base_feat.Shape.Edges[idx]
-                            edges_snap.append({
-                                'nom':       ename,
-                                'empreinte': _empreinte_arete(edge)
-                            })
-                        except Exception:
-                            edges_snap.append({'nom': ename, 'empreinte': None})
+        try:
+            refs = _lire_references_tnp(obj)
+            if not refs:
+                continue  # Pas de référence TNP → ignorer
 
-            # Suspendre la feature
-            deja_suspendue = bool(obj.Suppressed)
-            if not deja_suspendue:
-                obj.Suppressed = True
-            noms = [e['nom'] for e in edges_snap]
-            print(f"[ORing TNP] Suspension '{obj.Label}' "
-                  f"({obj.TypeId.split('::')[1]}) → {noms}")
-            suspendues.append({
-                'feature':       obj,
-                'base_prop':     base_prop,
-                'edges':         edges_snap,
-                'deja_suspendue': deja_suspendue,
-            })
+            # ── Habillage : suspension (Suppressed) ───────────────────────
+            if tipo in _TYPES_HABILLAGE:
+                if not hasattr(obj, 'Suppressed'):
+                    continue
+                deja_suspendu = bool(obj.Suppressed)
+                if not deja_suspendu:
+                    obj.Suppressed = True
+                noms = [r['nom'] for grp in refs for r in grp['refs']]
+                print(f"[ORing TNP] Suspension '{obj.Label}' "
+                      f"({tipo.split('::')[1]}) → {noms}")
+                suspendues.append({
+                    'feature':        obj,
+                    'mode':           'suppressed',
+                    'refs_groupes':   refs,
+                    'base_prop':      getattr(obj, 'Base', None),
+                    'edges':          refs[0]['refs'] if refs else [],
+                    'deja_suspendue': deja_suspendu,
+                })
+
+            # ── Datum / Sketch : détachement (MapMode) ───────────────────
+            elif tipo in _TYPES_DATUM or tipo in _TYPES_SKETCH_ATTACHE:
+                map_mode_ancien = getattr(obj, 'MapMode', 'Deactivated')
+                obj.MapMode = 'Deactivated'
+                noms = [r['nom'] for grp in refs for r in grp['refs']]
+                type_court = tipo.split('::')[1]
+                print(f"[ORing TNP] Détachement '{obj.Label}' "
+                      f"({type_court}, MapMode={map_mode_ancien}) → {noms}")
+                suspendues.append({
+                    'feature':      obj,
+                    'mode':         'detached',
+                    'map_mode_old': map_mode_ancien,
+                    'refs_groupes': refs,
+                    'deja_suspendue': False,
+                })
+
         except Exception as _e:
-            print(f"[ORing TNP] Suspension '{getattr(obj,'Label','')}' : {_e}")
+            print(f"[ORing TNP] Protection '{getattr(obj,'Label','')}' : {_e}")
 
     return suspendues
 
@@ -4574,16 +4978,93 @@ def _snapshot_habillage(body):
     return _suspendre_habillage(body)
 
 
+def _remappe_refs(feat, refs_groupes, prop_name, new_shape):
+    """
+    Tente de remapper les références topologiques d'un objet via empreinte
+    géométrique. Retourne True si réussi.
+    """
+    candidats = []
+    for i, f in enumerate(new_shape.Faces):
+        candidats.append({'nom': f'Face{i+1}',
+                          'empreinte': _empreinte_subshape_fake_face(f, i)})
+    for i, e in enumerate(new_shape.Edges):
+        candidats.append({'nom': f'Edge{i+1}',
+                          'empreinte': _empreinte_arete(e)})
+    for i, v in enumerate(new_shape.Vertexes):
+        p = v.Point
+        candidats.append({'nom': f'Vertex{i+1}', 'empreinte': {
+            'type': 'Vertex',
+            'com': (round(p.x,3), round(p.y,3), round(p.z,3))}})
+
+    nouveaux_groupes = []
+    for grp in refs_groupes:
+        base_feat = grp['base_feat']
+        nouveaux_noms = []
+        for ref_snap in grp['refs']:
+            emp_ref = ref_snap.get('empreinte')
+            if emp_ref is None:
+                nouveaux_noms.append(ref_snap['nom'])
+                continue
+            meilleur_score, meilleur_nom = -1, None
+            for cand in candidats:
+                score, ok = _empreinte_subshape_compatible(
+                    emp_ref, cand['empreinte'])
+                if ok and score > meilleur_score:
+                    meilleur_score, meilleur_nom = score, cand['nom']
+            if meilleur_nom:
+                print(f"[ORing TNP]   {ref_snap['nom']} → {meilleur_nom} "
+                      f"(score={meilleur_score})")
+                nouveaux_noms.append(meilleur_nom)
+            else:
+                print(f"[ORing TNP]   {ref_snap['nom']} → pas de correspondance")
+                nouveaux_noms.append(ref_snap['nom'])
+        nouveaux_groupes.append((base_feat, nouveaux_noms))
+
+    try:
+        if prop_name == 'Base':
+            bf, noms = nouveaux_groupes[0]
+            feat.Base = (bf, noms)
+        elif prop_name in ('Support', 'AttachmentSupport', 'MapPathParameter'):
+            if len(nouveaux_groupes) == 1:
+                setattr(feat, prop_name, nouveaux_groupes[0])
+            else:
+                setattr(feat, prop_name, nouveaux_groupes)
+        feat.touch()
+        return True
+    except Exception as _e:
+        print(f"[ORing TNP]   setattr({prop_name}) : {_e}")
+        return False
+
+
+def _empreinte_subshape_fake_face(face, idx):
+    """Empreinte géométrique pour une face."""
+    try:
+        com = face.CenterOfMass
+        try:
+            norm = face.normalAt(0, 0)
+            normal = (round(norm.x, 3), round(norm.y, 3), round(norm.z, 3))
+        except Exception:
+            normal = None
+        return {
+            'type':   'Face',
+            'ref':    f'Face{idx+1}',
+            'com':    (round(com.x, 3), round(com.y, 3), round(com.z, 3)),
+            'area':   round(face.Area, 3),
+            'normal': normal,
+        }
+    except Exception:
+        return None
+
+
 def _restaurer_habillage(doc, body, suspendues):
     """
-    Réactive les features d'habillage suspendues sur la géométrie stable.
+    Restaure toutes les features protégées par _suspendre_habillage.
 
-    Stratégie :
-      1. Réactiver (Suppressed=False) + recompute → le TNP fix natif de
-         FreeCAD 1.0 remappe les arêtes sur la géométrie déjà calculée.
-      2. Si la feature est encore en erreur → fallback remapping géométrique
-         par empreinte (centre de masse, longueur, rayon).
-      3. Si le fallback échoue → la feature est resuspended et signalée.
+    Modes :
+      - 'suppressed' : habillage (Chamfer, Fillet, Draft, Hole…)
+        → Suppressed=False + recompute, fallback remapping géométrique.
+      - 'detached' : datum / sketch détaché (MapMode)
+        → MapMode restauré + recompute, fallback remapping Support.
     """
     if not suspendues:
         return []
@@ -4591,96 +5072,102 @@ def _restaurer_habillage(doc, body, suspendues):
     _encore_erreur = []
 
     for snap in suspendues:
-        feat          = snap['feature']
+        feat           = snap['feature']
+        mode           = snap.get('mode', 'suppressed')
         deja_suspendue = snap.get('deja_suspendue', False)
 
         if deja_suspendue:
-            # Feature était déjà suspendue avant → ne pas la réactiver
             continue
 
-        # ── Étape 1 : réactivation + TNP fix natif ───────────────────────
-        try:
-            feat.Suppressed = False
-            feat.touch()
-            _silence_propertlylinks()
-            doc.recompute()
-            _restore_propertylinks()
-        except Exception as _e:
-            print(f"[ORing TNP] Réactivation '{feat.Label}' : {_e}")
-            _encore_erreur.append(feat.Label)
-            continue
-
-        if not _est_en_erreur(feat):
-            print(f"[ORing TNP] ✓ '{feat.Label}' réactivé (TNP fix natif)")
-            continue
-
-        # ── Étape 2 : fallback remapping géométrique ─────────────────────
-        print(f"[ORing TNP] '{feat.Label}' toujours en erreur "
-              f"→ remapping géométrique")
-        base_prop = snap.get('base_prop')
-        edges_snap = snap.get('edges', [])
-
-        if not edges_snap or not isinstance(base_prop, (list, tuple)):
-            _encore_erreur.append(feat.Label)
-            continue
-
-        base_feat = base_prop[0]
-        try:
-            new_shape = getattr(base_feat, 'Shape', None)
-            if new_shape is None or not new_shape.Edges:
+        # ── MODE 'suppressed' : habillage ──────────────────────────────────
+        if mode == 'suppressed':
+            try:
+                feat.Suppressed = False
+                feat.touch()
+                doc.recompute()
+            except Exception as _e:
+                print(f"[ORing TNP] Réactivation '{feat.Label}' : {_e}")
                 _encore_erreur.append(feat.Label)
                 continue
 
-            new_empreintes = [
-                {'nom': f'Edge{i+1}', 'empreinte': _empreinte_arete(e)}
-                for i, e in enumerate(new_shape.Edges)
-            ]
+            if not _est_en_erreur(feat):
+                print(f"[ORing TNP] ✓ '{feat.Label}' réactivé (TNP fix natif)")
+                continue
 
-            nouveaux_noms = []
-            for edge_snap in edges_snap:
-                emp_ref = edge_snap['empreinte']
-                if emp_ref is None:
-                    nouveaux_noms.append(edge_snap['nom'])
+            print(f"[ORing TNP] '{feat.Label}' toujours en erreur "
+                  f"→ remapping géométrique")
+            refs_groupes = snap.get('refs_groupes', [])
+            _ok = False
+            for grp in refs_groupes:
+                base_feat = grp.get('base_feat')
+                new_shape = getattr(base_feat, 'Shape', None)
+                if new_shape is None:
                     continue
-                meilleur_score, meilleur_nom = -1, None
-                for ne in new_empreintes:
-                    score, ok = _empreintes_compatibles(emp_ref, ne['empreinte'])
-                    if ok and score > meilleur_score:
-                        meilleur_score, meilleur_nom = score, ne['nom']
-                if meilleur_nom:
-                    print(f"[ORing TNP]   {edge_snap['nom']} → {meilleur_nom} "
-                          f"(score={meilleur_score})")
-                    nouveaux_noms.append(meilleur_nom)
-                else:
-                    print(f"[ORing TNP]   {edge_snap['nom']} → pas de correspondance")
-                    nouveaux_noms.append(edge_snap['nom'])
+                _ok = _remappe_refs(feat, [grp], grp.get('prop', 'Base'),
+                                    new_shape)
+                if _ok:
+                    feat.touch()
+                    doc.recompute()
+                    break
 
-            feat.Base = (base_feat, nouveaux_noms)
-            feat.touch()
-            _silence_propertlylinks()
-            doc.recompute()
-            _restore_propertylinks()
+            if _ok and not _est_en_erreur(feat):
+                print(f"[ORing TNP] ✓ '{feat.Label}' restauré par remapping")
+            else:
+                print(f"[ORing TNP] ⚠ '{feat.Label}' non récupéré → resuspendu")
+                try:
+                    feat.Suppressed = True
+                    doc.recompute()
+                except Exception:
+                    pass
+                _encore_erreur.append(feat.Label)
+
+        # ── MODE 'detached' : datum / sketch ───────────────────────────────
+        elif mode == 'detached':
+            map_mode_old = snap.get('map_mode_old', 'FlatFace')
+            try:
+                feat.MapMode = map_mode_old
+                feat.touch()
+                doc.recompute()
+            except Exception as _e:
+                print(f"[ORing TNP] Réattachement '{feat.Label}' : {_e}")
+                _encore_erreur.append(feat.Label)
+                continue
 
             if not _est_en_erreur(feat):
+                print(f"[ORing TNP] ✓ '{feat.Label}' réattaché "
+                      f"(MapMode={map_mode_old})")
+                continue
+
+            print(f"[ORing TNP] '{feat.Label}' toujours en erreur "
+                  f"→ remapping Support")
+            refs_groupes = snap.get('refs_groupes', [])
+            _ok = False
+            for grp in refs_groupes:
+                base_feat = grp.get('base_feat')
+                new_shape = getattr(base_feat, 'Shape', None)
+                if new_shape is None:
+                    continue
+                prop_used = grp.get('prop', 'Support')
+                _ok = _remappe_refs(feat, [grp], prop_used, new_shape)
+                if _ok:
+                    feat.MapMode = map_mode_old
+                    feat.touch()
+                    doc.recompute()
+                    break
+
+            if _ok and not _est_en_erreur(feat):
                 print(f"[ORing TNP] ✓ '{feat.Label}' restauré par remapping")
             else:
                 print(f"[ORing TNP] ⚠ '{feat.Label}' non récupéré "
-                      f"→ resuspendu")
-                feat.Suppressed = True
-                doc.recompute()
+                      f"(MapMode=Deactivated)")
+                try:
+                    feat.MapMode = 'Deactivated'
+                    doc.recompute()
+                except Exception:
+                    pass
                 _encore_erreur.append(feat.Label)
 
-        except Exception as _eg:
-            print(f"[ORing TNP] '{feat.Label}' remapping : {_eg}")
-            try:
-                feat.Suppressed = True
-                doc.recompute()
-            except Exception:
-                pass
-            _encore_erreur.append(feat.Label)
-
     return _encore_erreur
-
 
 
 def _maj_tore_inplace(doc, body_oring, r, position: str) -> bool:
@@ -5522,10 +6009,59 @@ _mettre_a_jour_parametre = mettre_a_jour_parametre
 # POINT D'ENTREE
 # =============================================================================
 
+def _fermer_taches_actives():
+    """
+    Détecte uniquement les tâches de mesure (Measurement) qui provoquent
+    un plantage connu à l'ouverture de la macro ORing, et propose de les
+    fermer. Les autres tâches (Sketch en édition, etc.) sont ignorées.
+
+    Retourne True si la voie est libre, False si l'utilisateur refuse.
+    """
+    # Mots-clés identifiant les tâches de mesure FreeCAD
+    _MOTS_MESURE = ('measure', 'Measure', 'measurement', 'Measurement',
+                    'MeasureDistance', 'MeasureAngle', 'MeasureRadius',
+                    'MeasureArea', 'MeasureLinear', 'CmdMeasure')
+    try:
+        import FreeCADGui as _Gui
+        ctrl = getattr(_Gui, 'Control', None)
+        if ctrl is None:
+            return True
+        active = ctrl.activeDialog()
+        if active is None:
+            return True
+        # Vérifier si c'est une tâche de mesure
+        nom = type(active).__name__
+        if not any(m in nom for m in _MOTS_MESURE):
+            return True   # Autre type de tâche → laisser passer
+        # C'est une tâche de mesure → proposer de la fermer
+        reponse = QtWidgets.QMessageBox.question(
+            None,
+            "ORing — Mesure active",
+            "Un outil de mesure FreeCAD est ouvert.\n\n"
+            "Cela provoquerait un plantage à l'ouverture de la macro.\n\n"
+            "Voulez-vous fermer l'outil de mesure et continuer ?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.Yes
+        )
+        if reponse != QtWidgets.QMessageBox.Yes:
+            return False
+        try:
+            ctrl.closeDialog()
+            QtWidgets.QApplication.processEvents()
+        except Exception as _e:
+            print(f"[ORing] Fermeture mesure : {_e}")
+        return True
+    except Exception as _e:
+        print(f"[ORing] Verification taches : {_e}")
+        return True   # En cas d'erreur, toujours laisser passer
+
+
 def lancer_dialogue():
     """
     Point d'entrée de la macro.
 
+    Étape 1a : vérifie qu'aucune tâche FreeCAD n'est ouverte (measurement,
+    sketch, etc.) — une tâche active provoque un plantage à l'ouverture.
     Étape 1b : vérifie qu'au moins un body valide existe avant d'ouvrir
     le dialogue principal. Si aucun body ne satisfait les critères
     (LCS + paramètre nommé), affiche un message d'instruction et se ferme
@@ -5538,6 +6074,10 @@ def lancer_dialogue():
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication([])
+
+    # ── Étape 1a : vérifier qu'aucune tâche n'est active ─────────────────────
+    if not _fermer_taches_actives():
+        return None
 
     # ── Étape 1b : validation au démarrage ───────────────────────────────────
     try:
@@ -5570,8 +6110,68 @@ def lancer_dialogue():
     except Exception:
         pass
 
+    # ── Dialogue de sélection de langue (mode MANUEL) ────────────────────
+    # Appelé ici car Gui.getMainWindow() est disponible et le dialogue
+    # apparaît correctement au premier plan.
+    try:
+        from .i18n import (check_language_mode, _afficher_dialogue_langue,
+                           _sauvegarder_langue, setup as _i18n_setup_dlg,
+                           _ORING_DIR as _oring_dir_lang, get_lang)
+        if _oring_dir_lang:
+            _mode_lang = check_language_mode(_oring_dir_lang)
+            if _mode_lang == 'manual':
+                _mw = Gui.getMainWindow() if FREECAD_DISPONIBLE else None
+                _lang_actuel = get_lang()
+                _lang_choisi = _afficher_dialogue_langue(
+                    _oring_dir_lang, _lang_actuel, parent=_mw
+                )
+                if _lang_choisi != _lang_actuel:
+                    _sauvegarder_langue(_oring_dir_lang, _lang_choisi)
+                    _i18n_setup_dlg(_lang_choisi)
+                    print(f"[ORing] Langue changée : {_lang_actuel} → {_lang_choisi}")
+    except Exception as _e_lang_dlg:
+        print(f"[ORing] AVERT sélection langue : {_e_lang_dlg}")
+
+    # ── Détecter si un joint ORing est sélectionné avant le lancement ────
+    part_selectionne = None
+    try:
+        from .metadata import lister_parts_oring
+        if doc is not None:
+            parts_oring = {p.Name: p for p in lister_parts_oring(doc)}
+            if parts_oring:
+                for sel_obj in Gui.Selection.getSelection():
+                    # Correspondance directe : l'objet sélectionné est un Part ORing
+                    if sel_obj.Name in parts_oring:
+                        part_selectionne = parts_oring[sel_obj.Name]
+                        break
+                    # Correspondance indirecte : l'objet est à l'intérieur d'un Part ORing
+                    for part in parts_oring.values():
+                        try:
+                            if sel_obj in part.OutListRecursive:
+                                part_selectionne = part
+                                break
+                        except Exception:
+                            pass
+                    if part_selectionne:
+                        break
+    except Exception as _e_sel:
+        print(f"[ORing] Détection sélection AVERT : {_e_sel}")
+
+    if part_selectionne:
+        print(f"[ORing] Joint pré-sélectionné détecté : {part_selectionne.Label}")
+
+    # ── Créer et afficher le dialogue ─────────────────────────────────────
     dlg = DialogueORing(parent=Gui.getMainWindow())
-    dlg._onglet_initial()   # bascule sur onglet 3 si dérive détectée
+
+    if part_selectionne is not None:
+        # Ouvrir directement sur l'onglet 2 avec les paramètres du joint
+        QtCore.QTimer.singleShot(
+            0, lambda p=part_selectionne: dlg._ouvrir_depuis_selection(p)
+        )
+    else:
+        # Comportement normal : onglet 3 si dérive, sinon onglet 1
+        dlg._onglet_initial()
+
     dlg.exec_()
     return dlg.get_resultat()
 

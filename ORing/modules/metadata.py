@@ -1,3 +1,4 @@
+# Chemin : modules/metadata.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026

@@ -1,3 +1,4 @@
+# Chemin : modules/sketch_arbre.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026
@@ -469,4 +470,3 @@ if __name__ == '__main__':
             print(f"  {k:12s} : ({v.x:.4f}, {v.y:.4f})")
         else:
             print(f"  {k:12s} : {v:.4f}")
-

@@ -1,3 +1,4 @@
+# Chemin : modules/oring_3d.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026

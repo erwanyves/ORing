@@ -1,3 +1,4 @@
+# Chemin : modules/utils.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026
@@ -18,6 +19,8 @@ Ajout de trois fonctions de filtrage :
 """
 
 import math
+
+from .i18n import tr
 
 # Import FreeCAD conditionnel — permet les tests partiels hors FreeCAD
 try:
@@ -70,10 +73,10 @@ def get_document_actif():
     Lève RuntimeError si aucun document n'est ouvert.
     """
     if not FREECAD_DISPONIBLE:
-        raise RuntimeError("FreeCAD non disponible")
+        raise RuntimeError(tr("FreeCAD not available"))
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("Aucun document FreeCAD actif")
+        raise RuntimeError(tr("Active document not found"))
     return doc
 
 
@@ -139,25 +142,70 @@ def lister_lcs(body) -> list:
 # FILTRAGE DES BODIES (étape 1a)
 # =============================================================================
 
+def lister_lcs_libres(body, doc=None) -> list:
+    """
+    Retourne la liste des LCS du body qui ne sont pas encore occupés
+    par un joint ORing existant dans le document.
+
+    Un LCS est considéré "occupé" si ses métadonnées dans un Part ORing
+    référencent ce LCS (par label) pour ce body.
+    """
+    tous = lister_lcs(body)
+    if not tous:
+        return []
+    if not FREECAD_DISPONIBLE or doc is None:
+        # Sans doc, impossible de vérifier — retourner tous les LCS
+        return tous
+    try:
+        # Collecter les labels LCS déjà utilisés pour ce body
+        from .metadata import lister_parts_oring, lire_metadonnees
+        deja_pris = set()
+        body_name  = getattr(body, 'Name', '')
+        body_label = getattr(body, 'Label', '')
+        for part in lister_parts_oring(doc):
+            try:
+                m = lire_metadonnees(part)
+                # Vérifier que ce joint appartient bien à ce body
+                if (m.get('body_gorge_name') == body_name
+                        or m.get('body_gorge_label') == body_label):
+                    lcs_lbl = m.get('lcs_label', '')
+                    if lcs_lbl:
+                        deja_pris.add(lcs_lbl)
+            except Exception:
+                pass
+        return [lcs for lcs in tous if lcs.Label not in deja_pris]
+    except Exception:
+        return tous   # En cas d'erreur, retourner tous (pas de faux-négatif)
+
+
 def lister_bodies_valides_gorge(doc=None) -> list:
     """
     Retourne les bodies utilisables comme pièce portant la GORGE.
 
-    Critères (conformes au plan d'amélioration étape 1a) :
-      - au moins 1 LCS (PartDesign::CoordinateSystem ou équivalent)
-      - au moins 1 paramètre nommé (contrainte sketch ou alias spreadsheet)
+    Critères :
+      1. Au moins 1 LCS LIBRE (non déjà occupé par un joint ORing existant)
+      2. Au moins 1 paramètre nommé (contrainte sketch ou alias spreadsheet)
+         excluant les paramètres internes de gorge ORing
 
     Ces deux conditions garantissent que la macro peut :
-      1. accrocher le sketch au plan XZ du LCS
-      2. mettre à jour le diamètre de la pièce via le paramètre nommé
+      1. Accrocher le sketch au plan XZ d'un LCS disponible
+      2. Mettre à jour le diamètre de la pièce via le paramètre nommé
+
+    Un body dont tous les LCS sont déjà utilisés par des joints existants
+    n'est PAS proposé (le combo LCS serait vide et la création impossible).
     """
     bodies = lister_bodies(doc)
     resultat = []
     for b in bodies:
         if _est_body_oring(b):
-            continue  # exclure les corps ORing générés par la macro (#5)
-        if lister_lcs(b) and lister_parametres_body(b):
-            resultat.append(b)
+            continue  # exclure les corps ORing générés par la macro
+        # Vérifier LCS libres (pas juste LCS existants)
+        if not lister_lcs_libres(b, doc):
+            continue
+        # Vérifier paramètres nommés (hors paramètres internes de gorge)
+        if not lister_parametres_body(b):
+            continue
+        resultat.append(b)
     return resultat
 
 

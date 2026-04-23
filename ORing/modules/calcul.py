@@ -1,3 +1,4 @@
+# Chemin : modules/calcul.py
 # Auteur  : Yves Guillou
 # Licence : LGPL
 # Date    : 03-2026
@@ -45,6 +46,7 @@ import math
 import json
 import os
 from .materiaux import verifier_conditions, get_durete_standard
+from .i18n   import tr
 from .joints    import (choisir_serie, choisir_d1, get_serie,
                         get_plage_squeeze, get_plage_fill,
                         get_limites_extrusion)
@@ -106,11 +108,11 @@ def it_value(diametre_mm: float, grade: int) -> float:
     it_cfg = _params()['it_iso286']
     grades = it_cfg['_grades']          # [6, 7, 8, 9, 10, 11]
     if grade not in grades:
-        raise ValueError(f"Grade IT{grade} non supporté. Valeurs : {grades}")
+        raise ValueError(tr("IT{grade} grade not supported. Values: {vals}", grade=grade, vals=grades))
     col = grades.index(grade)           # index dans 'valeurs'
 
     if diametre_mm <= 0:
-        raise ValueError("Diamètre doit être > 0")
+        raise ValueError(tr("Diameter must be > 0"))
 
     for row in it_cfg['table']:
         if row['d_min'] < diametre_mm <= row['d_max']:
@@ -248,16 +250,16 @@ def calculer_gorge(
     # Étape 0-1 : validation des entrées
     # ------------------------------------------------------------------
     if position not in POSITIONS:
-        r.alertes.append(f"Position '{position}' invalide. Valeurs : {POSITIONS}")
+        r.alertes.append(tr("Position '{pos}' invalid. Values: {vals}", pos=position, vals=list(POSITIONS)))
         return r
     if type_montage not in TYPES_MONTAGE:
-        r.alertes.append(f"Type '{type_montage}' invalide. Valeurs : {TYPES_MONTAGE}")
+        r.alertes.append(tr("Type '{type}' invalid. Values: {vals}", type=type_montage, vals=list(TYPES_MONTAGE)))
         return r
     if standard not in STANDARDS:
-        r.alertes.append(f"Standard '{standard}' inconnu. Valeurs : {STANDARDS}")
+        r.alertes.append(tr("Standard '{std}' unknown. Values: {vals}", std=standard, vals=list(STANDARDS)))
         return r
     if diametre_piece_mm <= 0:
-        r.alertes.append("Diamètre alésage doit être > 0 mm")
+        r.alertes.append(tr("Bore diameter must be > 0 mm"))
         return r
 
     # ------------------------------------------------------------------
@@ -359,10 +361,9 @@ def calculer_gorge(
             serie = meilleur.get('_serie_override', serie)
             r.serie = serie
             res_d1  = meilleur
-            r.avertissements.append(
-                f"Série auto-corrigée {serie_originale} → {serie} "
-                f"pour satisfaire stretch ≤ {STRETCH_MAX_CIBLE}%"
-            )
+            r.avertissements.append(tr(
+                "Series auto-corrected {s_old} → {s_new} to satisfy stretch ≤ {cible}%",
+                s_old=serie_originale, s_new=serie, cible=STRETCH_MAX_CIBLE))
 
     r.d1          = res_d1['d1']
     r.d2          = res_d1['d2']
@@ -376,10 +377,10 @@ def calculer_gorge(
                 r.alertes.append(a)
             else:
                 # Entre 5% et 8% : avertissement seulement
-                r.avertissements.append(
-                    f"Stretch {r.stretch_pct:.1f}% légèrement > {STRETCH_MAX_CIBLE}% "
-                    f"(acceptable jusqu'à {STRETCH_MAX_BLOQUANT}% — vérifier le montage)"
-                )
+                r.avertissements.append(tr(
+                    "Stretch {st:.1f}% slightly > {cible}% "
+                    "(acceptable up to {bloquant}% — check installation)",
+                    st=r.stretch_pct, cible=STRETCH_MAX_CIBLE, bloquant=STRETCH_MAX_BLOQUANT))
         else:
             r.avertissements.append(a)
 
@@ -392,15 +393,15 @@ def calculer_gorge(
     else:
         squeeze = squeeze_cible_pct
         if squeeze < plage_sq['min']:
-            r.alertes.append(
-                f"Squeeze {squeeze:.1f}% < minimum recommandé "
-                f"{plage_sq['min']}% pour '{type_montage}'"
-            )
+            r.alertes.append(tr(
+                "Squeeze {sq:.1f}% below recommended minimum "
+                "{pmin}% for '{mt}'",
+                sq=squeeze, pmin=plage_sq["min"], mt=type_montage))
         elif squeeze > plage_sq['max']:
-            r.alertes.append(
-                f"Squeeze {squeeze:.1f}% > maximum recommandé "
-                f"{plage_sq['max']}% pour '{type_montage}'"
-            )
+            r.alertes.append(tr(
+                "Squeeze {sq:.1f}% above recommended maximum "
+                "{pmax}% for '{mt}'",
+                sq=squeeze, pmax=plage_sq["max"], mt=type_montage))
     r.squeeze_pct = squeeze
 
     # ------------------------------------------------------------------
@@ -427,15 +428,13 @@ def calculer_gorge(
     r.fill_pct = round(fill_reel, 1)
 
     if fill_reel > plage_fill['max']:
-        r.alertes.append(
-            f"Fill {fill_reel:.1f}% > {plage_fill['max']}% max "
-            f"(gorge trop étroite) — augmenter b"
-        )
+        r.alertes.append(tr(
+            "Fill {fill:.1f}% > {fmax}% max (groove too narrow) — increase b",
+            fill=fill_reel, fmax=plage_fill["max"]))
     elif fill_reel < plage_fill['min']:
-        r.avertissements.append(
-            f"Fill {fill_reel:.1f}% < {plage_fill['min']}% min "
-            f"(gorge trop large) — réduire b si possible"
-        )
+        r.avertissements.append(tr(
+            "Fill {fill:.1f}% < {fmin}% min (groove too wide) — reduce b if possible",
+            fill=fill_reel, fmin=plage_fill["min"]))
 
     # ------------------------------------------------------------------
     # Rayons pour sketch FreeCAD
@@ -464,30 +463,26 @@ def calculer_gorge(
     if pression_bar >= limites['bague_obligatoire']:
         r.risque_extrusion    = 'critique'
         r.bague_antiextrusion = True
-        r.alertes.append(
-            f"Pression {pression_bar} bar ≥ {limites['bague_obligatoire']} bar "
-            f"→ bague anti-extrusion OBLIGATOIRE"
-        )
+        r.alertes.append(tr(
+            "Pressure {p} bar ≥ {plim} bar → anti-extrusion ring MANDATORY",
+            p=pression_bar, plim=limites["bague_obligatoire"]))
     elif pression_bar >= limites['critique']:
         r.risque_extrusion    = 'critique'
         r.bague_antiextrusion = True
-        r.avertissements.append(
-            f"Pression {pression_bar} bar ≥ {limites['critique']} bar "
-            f"→ bague anti-extrusion fortement recommandée"
-        )
+        r.avertissements.append(tr(
+            "Pressure {p} bar ≥ {plim} bar → anti-extrusion ring strongly recommended",
+            p=pression_bar, plim=limites["critique"]))
     elif pression_bar >= limites['attention']:
         r.risque_extrusion = 'attention'
-        r.avertissements.append(
-            f"Pression {pression_bar} bar ≥ {limites['attention']} bar "
-            f"→ surveiller le jeu radial et la dureté (≥ 80 Shore A conseillé)"
-        )
+        r.avertissements.append(tr(
+            "Pressure {p} bar ≥ {plim} bar → check radial clearance and hardness (≥ 80 Shore A recommended)",
+            p=pression_bar, plim=limites["attention"]))
 
     durete_std = get_durete_standard(r.materiau)
     if durete_std and pression_bar > 50 and durete_std < 80:
-        r.avertissements.append(
-            f"Dureté standard {durete_std} Shore A — "
-            f"envisager 80 ou 90 Shore A à {pression_bar} bar"
-        )
+        r.avertissements.append(tr(
+            "Standard hardness {sh} Shore A — consider 80 or 90 Shore A at {p} bar",
+            sh=durete_std, p=pression_bar))
 
     # ------------------------------------------------------------------
     # Étape 10 : tolérances indicatives (ISO 3601-2 / règles usuelles)
@@ -565,7 +560,7 @@ def ecarts_arbre(diametre_mm: float, lettre: str, grade: int) -> dict:
     if lettre not in ('f', 'g'):
         raise ValueError(f"Lettre '{lettre}' non supportée. Valeurs : f, g")
     if grade not in range(6, 10):
-        raise ValueError(f"Grade {grade} hors plage (6–9)")
+        raise ValueError(tr("Grade {grade} out of range (6–9)", grade=grade))
 
     es_µm = None
     for d_min, d_max, ef, eg in _ECARTS_FONDAMENTAUX:
@@ -699,10 +694,10 @@ def calculer_variation_serrage(
     sq_min_cas1 = (d2 - h_max_cas1) / d2 * 100.0
 
     if sq_min_cas1 < 5.0:
-        alertes.append(
-            f"Cas 1 : squeeze minimal {sq_min_cas1:.1f}% < 5% — "
-            f"risque d'étanchéité insuffisante en pire cas coaxial"
-        )
+        alertes.append(tr(
+            "Case 1: min squeeze {sq:.1f}% < 5% — "
+            "risk of insufficient sealing in coaxial worst case",
+            sq=sq_min_cas1))
 
     # ── Excentricité maximale (CAS 2) ─────────────────────────────────
     if excentricite_mm is not None:
@@ -726,25 +721,25 @@ def calculer_variation_serrage(
     surcompression = h_min_local <= 0  # h ≤ 0 → joint pincé à mort
 
     if contact_perdu:
-        alertes.append(
-            f"Cas 2 : perte de contact (h_max_local={h_max_local:.3f} mm ≥ d2={d2} mm) "
-            f"— joint non étanche côté excentré"
-        )
+        alertes.append(tr(
+            "Case 2: contact loss (h_max_local={h:.3f} mm ≥ d2={d2} mm) "
+            "— seal not tight on eccentric side",
+            h=h_max_local, d2=d2))
     elif sq_min_local < 5.0:
-        alertes.append(
-            f"Cas 2 : squeeze local minimal {sq_min_local:.1f}% < 5% "
-            f"côté excentré — étanchéité à vérifier"
-        )
+        alertes.append(tr(
+            "Case 2: min local squeeze {sq:.1f}% < 5% "
+            "on eccentric side — sealing to be verified",
+            sq=sq_min_local))
     if surcompression:
-        alertes.append(
-            f"Cas 2 : écrasement total (h_min_local={h_min_local:.3f} mm ≤ 0) "
-            f"— joint détruit côté serré"
-        )
+        alertes.append(tr(
+            "Case 2: total crush (h_min_local={h:.3f} mm ≤ 0) "
+            "— seal destroyed on tight side",
+            h=h_min_local))
     elif sq_max_local > 35.0:
-        alertes.append(
-            f"Cas 2 : squeeze local maximal {sq_max_local:.1f}% > 35% "
-            f"côté serré — risque de détérioration accélérée"
-        )
+        alertes.append(tr(
+            "Case 2: max local squeeze {sq:.1f}% > 35% "
+            "on tight side — risk of accelerated degradation",
+            sq=sq_max_local))
 
     return {
         'h_nominal'      : round(h,         4),
@@ -952,4 +947,3 @@ if __name__ == '__main__':
     afficher_synthese(r3)
     v3 = calculer_variation_serrage(r3)
     afficher_variation_serrage(v3)
-
