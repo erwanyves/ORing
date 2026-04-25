@@ -134,21 +134,35 @@ def init(oring_dir: str) -> str:
     print(f"[ORing i18n] lang.txt : {lang_file}  "
           f"(existe={os.path.isfile(lang_file)})")
 
-    lang = ''
+    lang = None
+
     if os.path.isfile(lang_file):
         try:
             with open(lang_file, 'r', encoding='utf-8') as f:
                 contenu = f.read()
             print(f"[ORing i18n] lang.txt contenu : {repr(contenu)}")
-            premiere_ligne = contenu.strip().splitlines()[0].strip().lower()
-            if len(premiere_ligne) >= 2 and premiere_ligne[:2].isalpha():
-                lang = premiere_ligne[:2]
-                print(f"[ORing i18n] Langue lue : '{lang}'")
+            lignes = [l.strip() for l in contenu.strip().splitlines() if l.strip()]
+            if lignes:
+                candidate = lignes[0].lower()[:2]
+                if candidate.isalpha():
+                    lang = candidate
+                    print(f"[ORing i18n] Langue lue dans lang.txt : '{lang}'")
+                else:
+                    print(f"[ORing i18n] lang.txt : code invalide → auto-détection")
+            else:
+                print(f"[ORing i18n] lang.txt vide → auto-détection")
         except Exception as e:
-            print(f"[ORing i18n] Erreur lecture lang.txt : {e}")
+            print(f"[ORing i18n] lang.txt erreur lecture ({e}) → auto-détection")
 
-    if not lang:
+    if lang is None:
+        # Absent, vide ou illisible → auto-détection système
         lang = _detecter()
+    elif lang != 'en':
+        # Code lu mais .json absent → anglais
+        json_path = os.path.join(_LOCALES_DIR, f'{lang}.json')
+        if not os.path.isfile(json_path):
+            print(f"[ORing i18n] {lang}.json introuvable → anglais forcé")
+            lang = 'en' 
 
     _charger(lang)
     return _lang_code

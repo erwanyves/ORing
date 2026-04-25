@@ -96,6 +96,18 @@ except ImportError:
         QColor = _Stub
 
 from .i18n import tr
+
+
+def _nom_mat(m: dict) -> str:
+    """Retourne le nom complet du matériau dans la langue courante.
+    Importe le MODULE i18n à chaque appel (pas la fonction) pour garantir
+    l'accès à _translations courant, sans dépendance de timing."""
+    try:
+        from . import i18n as _i18n_mod
+        return _i18n_mod.tr(m.get('nom_complet', ''))
+    except Exception:
+        return m.get('nom_complet', '')
+
 from .calcul    import calculer_gorge, afficher_synthese, TYPES_MONTAGE, STANDARDS, ecarts_arbre, it_value
 from .materiaux import liste_materiaux, get_materiau
 from .joints    import liste_series, liste_d2, get_plage_squeeze, choisir_d1
@@ -828,18 +840,26 @@ class DialogueORing(QtWidgets.QDialog):
         v3.setSpacing(6)
         v3.addWidget(self._section_joints_existants())   # (B) tableau
         tabs.addTab(w3, tr("3 · Existing seals"))
+        # Rafraîchir noms matériaux (tr() garanti actif après event loop)
+        QtCore.QTimer.singleShot(50, self._rafraichir_noms_materiaux)
 
         # Rafraîchir l'onglet 3 à l'activation
         tabs.currentChanged.connect(self._on_tab_change)
 
         # ── Boutons (hors onglets) ────────────────────────────────────────
         bl = QtWidgets.QHBoxLayout()
+        # Bouton aide — texte simple, compatible tous thèmes FreeCAD
+        self.btn_aide = QtWidgets.QPushButton(tr("? Help"))
+        self.btn_aide.setToolTip(tr("Help — Getting Started Guide"))
+        self.btn_aide.clicked.connect(self._ouvrir_aide)
         self.btn_appliquer = QtWidgets.QPushButton(tr("Apply in FreeCAD"))
         self.btn_fermer    = QtWidgets.QPushButton(tr("Close"))
         self.btn_appliquer.setEnabled(False)
 
         self.btn_appliquer.clicked.connect(self._on_appliquer)
         self.btn_fermer.clicked.connect(self.reject)
+        bl.addWidget(self.btn_aide)
+        bl.addStretch()
         bl.addWidget(self.btn_appliquer)
         bl.addStretch()
         bl.addWidget(self.btn_fermer)
@@ -915,23 +935,25 @@ class DialogueORing(QtWidgets.QDialog):
             lbl.setMinimumWidth(240)
             return lbl
 
+        # Tuples (clé_stable_EN, label_traduit, tooltip_traduit)
+        # La clé stable EN est utilisée pour _synth_vals → pas de KeyError quelle que soit la langue
         etiquettes = [
-            (tr("Seal"),      tr("Selected seal (standard / series / d2)")),
-            (tr("d1"),        tr("Inner diameter + stretch")),
-            (tr("Groove"),    tr("Groove depth h and width b")),
-            (tr("Squeeze"),   tr("Actual squeeze and fill ratio")),
-            (tr("\u00d8 bottom"),  tr("Groove bottom diameter")),
-            (tr("Extrusion"), tr("Extrusion risk")),
+            ("Seal",       tr("Seal"),          tr("Selected seal (standard / series / d2)")),
+            ("d1",         tr("d1"),             tr("Inner diameter + stretch")),
+            ("Groove",     tr("Groove"),         tr("Groove depth h and width b")),
+            ("Squeeze",    tr("Squeeze"),        tr("Actual squeeze and fill ratio")),
+            ("Ø bottom",   tr("\u00d8 bottom"), tr("Groove bottom diameter")),
+            ("Extrusion",  tr("Extrusion"),      tr("Extrusion risk")),
         ]
         self._synth_vals = {}
-        for row, (etiq, tip) in enumerate(etiquettes):
-            lbl_e = QtWidgets.QLabel(etiq + " :")
+        for row, (key, label, tip) in enumerate(etiquettes):
+            lbl_e = QtWidgets.QLabel(label + " :")
             lbl_e.setStyleSheet("font-size: 9pt;")
             lbl_e.setToolTip(tip)
             lbl_v = _lbl_val()
             grid.addWidget(lbl_e, row, 0)
             grid.addWidget(lbl_v, row, 1)
-            self._synth_vals[etiq] = lbl_v
+            self._synth_vals[key] = lbl_v   # clé stable EN
 
         # Séparateur horizontal
         sep = QtWidgets.QFrame()
@@ -974,10 +996,10 @@ class DialogueORing(QtWidgets.QDialog):
             txt_joint = f"{r.standard} · {r.serie} — Ø {r.d2} mm"
             if r.code_joint:
                 txt_joint += f"  [{r.code_joint}]"
-            self._synth_vals["Joint"].setText(txt_joint)
-            self._synth_vals["Joint"].setStyleSheet("")
+            self._synth_vals["Seal"].setText(txt_joint)
+            self._synth_vals["Seal"].setStyleSheet("")
         else:
-            self._synth_vals["Joint"].setText("—")
+            self._synth_vals["Seal"].setText("—")
 
         # ── d1 + stretch ──
         if r.d1 is not None and r.stretch_pct is not None:
@@ -999,12 +1021,12 @@ class DialogueORing(QtWidgets.QDialog):
 
         # ── Gorge (h, b) ──
         if r.h is not None and r.b is not None:
-            self._synth_vals["Gorge"].setText(
+            self._synth_vals["Groove"].setText(
                 f"h = {r.h:.3f} mm   b = {r.b:.3f} mm"
             )
-            self._synth_vals["Gorge"].setStyleSheet("")
+            self._synth_vals["Groove"].setStyleSheet("")
         else:
-            self._synth_vals["Gorge"].setText("—")
+            self._synth_vals["Groove"].setText("—")
 
         # ── Squeeze + Fill ──
         if r.squeeze_pct is not None and r.fill_pct is not None:
@@ -1023,11 +1045,11 @@ class DialogueORing(QtWidgets.QDialog):
 
         # ── Ø fond de gorge ──
         if r.rayon_gorge is not None:
-            self._synth_vals["Ø fond"].setText(
+            self._synth_vals["Ø bottom"].setText(
                 f"{r.rayon_gorge * 2:.4f} mm"
             )
         else:
-            self._synth_vals["Ø fond"].setText("—")
+            self._synth_vals["Ø bottom"].setText("—")
 
         # ── Extrusion ──
         if r.risque_extrusion:
@@ -1637,6 +1659,46 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 print("[ORing] Highlight désactivé")
         except Exception as e:
             print(f"[ORing] _fin_highlight AVERT : {e}")
+
+
+    def _ouvrir_aide(self):
+        """Ouvre le guide de démarrage (PrerequisHelper)."""
+        try:
+            from .prerequis_helper import PrerequisHelper
+            from .helper_i18n import merge_helper_translations, make_tr
+
+            # Construire un dict de traductions dédié au helper
+            # en chargeant helper_<lang>.json sans dépendre de i18n.make_tr
+            from . import i18n as _i18n_mod
+            lang = _i18n_mod.get_lang()
+
+            import json, os
+            _locales = os.path.normpath(
+                os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             '..', 'locales')
+            )
+            translations = {}
+            # Charger helper_<lang>.json, fallback helper_en.json
+            for candidate in (lang, 'en'):
+                path = os.path.join(_locales, f'helper_{candidate}.json')
+                if os.path.isfile(path):
+                    with open(path, 'r', encoding='utf-8') as _f:
+                        translations.update(json.load(_f))
+                    break
+
+            tr_helper = make_tr(translations)
+            dlg = PrerequisHelper(tr=tr_helper, parent=self)
+            dlg.exec_()
+        except Exception as e:
+            print(f"[ORing] _ouvrir_aide ERREUR : {e}")
+            import traceback; traceback.print_exc()
+            try:
+                QtWidgets.QMessageBox.warning(
+                    self, "ORing — Aide",
+                    f"Impossible d'ouvrir le guide :\n{e}"
+                )
+            except Exception:
+                pass
 
     def _ouvrir_depuis_selection(self, part):
         """
@@ -2682,6 +2744,32 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
     # ------------------------------------------------------------------
     # Section Matériau
     # ------------------------------------------------------------------
+
+    def _rafraichir_noms_materiaux(self):
+        """
+        Met à jour les textes du combo matériau avec les traductions courantes.
+        Appelée via QTimer.singleShot(0) après démarrage de l'event loop,
+        quand tr() est garanti opérationnel.
+        """
+        try:
+            combo = self.combo_materiau
+            current_data = combo.currentData()
+            combo.blockSignals(True)
+            for i in range(combo.count()):
+                abrev = combo.itemData(i)
+                if abrev:
+                    from .materiaux import get_materiau
+                    m = get_materiau(abrev)
+                    combo.setItemText(i, f"{abrev} — {_nom_mat(m)}")
+            # Restaurer la sélection courante
+            for i in range(combo.count()):
+                if combo.itemData(i) == current_data:
+                    combo.setCurrentIndex(i)
+                    break
+            combo.blockSignals(False)
+        except Exception as e:
+            print(f"[ORing] _rafraichir_noms_materiaux AVERT : {e}")
+
     def _section_materiau(self):
         grp = QtWidgets.QGroupBox(tr("Material"))
         layout = QtWidgets.QVBoxLayout(grp)
@@ -2691,7 +2779,9 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         self.combo_materiau = QtWidgets.QComboBox()
         for abrev in liste_materiaux():
             m = get_materiau(abrev)
-            self.combo_materiau.addItem(f"{abrev} — {m['nom_complet']}", abrev)
+            self.combo_materiau.addItem(f"{abrev} — {_nom_mat(m)}", abrev)
+        # Mémoriser pour rafraîchissement éventuel si la langue change
+        self._combo_materiau_populated = True
         form.addRow(tr("Material:"), self.combo_materiau)
 
         self.text_materiau_info = QtWidgets.QTextEdit()
