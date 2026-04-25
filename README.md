@@ -11,6 +11,110 @@ A parametric FreeCAD macro for designing, inserting, and managing O-ring groove 
 **Author:** Yves Guillou · **Version:** 2.1 · **License:** LGPL v2.1
 
 ---
+# ORing — Release Notes v2.2
+
+**Date :** avril 2026  
+**Compatibilité :** FreeCAD 1.0+ · Python 3.x · PySide2
+
+---
+
+## Nouveautés
+
+### 🌐 Internationalisation (i18n)
+
+Le programme est désormais entièrement internationalisé. L'anglais devient la langue de référence du code source ; le français reste disponible comme première traduction.
+
+**Détection automatique de la langue** (ordre de priorité) :
+1. Préférences FreeCAD (`BaseApp/Preferences/General → Language`)
+2. Locale Qt système
+3. Locale Python / variables d'environnement
+4. Fallback : anglais
+
+**Forcer une langue** : créer le fichier `ORing/lang.txt` contenant le code ISO sur la première ligne (ex. `fr`, `en`). Fichier absent ou vide → auto-détection.
+
+**Ajouter une nouvelle langue** : créer `ORing/locales/de.json` (copie de `en.json` avec les valeurs traduites) et `ORing/locales/helper_de.json` (copie de `helper_en.json`). Aucune modification du code nécessaire.
+
+**Fichiers livrés :**
+
+| Fichier | Contenu |
+|---|---|
+| `modules/i18n.py` | Moteur de traduction — détection, chargement JSON, fonction `tr()` |
+| `locales/en.json` | 243 clés anglaises (référence) |
+| `locales/fr.json` | 317 clés françaises |
+| `locales/helper_en.json` | Guide d'aide 5 pages — anglais |
+| `locales/helper_fr.json` | Guide d'aide 5 pages — français |
+
+---
+
+### 🖱️ Ouverture directe en mode modification
+
+Si un joint O-Ring est sélectionné dans la vue 3D **avant** le lancement de la macro, le dialogue s'ouvre directement sur l'onglet 2 avec les paramètres du joint pré-remplis, en mode modification — sans passer par l'onglet 3.
+
+Équivalent à : onglet 3 → sélectionner → clic Modifier, mais en une seule action.
+
+La détection fonctionne que l'objet sélectionné soit le `Part` conteneur ORing ou n'importe quel sous-objet qu'il contient (Body, Sketch, etc.).
+
+---
+
+### 🔆 Mise en surbrillance du joint en modification
+
+Lorsqu'un joint entre en mode modification, il est mis en **surbrillance** dans la vue 3D FreeCAD via `Gui.Selection`. La surbrillance est maintenue pendant toute la durée de la modification et retirée automatiquement à la fermeture du dialogue ou à l'annulation du mode modification.
+
+---
+
+### ❓ Guide de démarrage intégré
+
+Un bouton **`? Aide`** est ajouté en bas à gauche du dialogue principal. Il ouvre un guide multi-pages expliquant les prérequis et le fonctionnement de la macro.
+
+**5 pages :**
+1. Structure du document FreeCAD
+2. Paramètres nommés obligatoires
+3. Système de coordonnées local (LCS)
+4. Informations techniques de service (tableau)
+5. Vérification finale avant lancement
+
+Le guide respecte le thème FreeCAD (clair / sombre) et est entièrement traduit via `helper_en.json` / `helper_fr.json`.
+
+---
+
+## Corrections
+
+| Problème | Correction |
+|---|---|
+| Matériau affiché en anglais en mode français | Import du module i18n à l'appel (pas à l'import) — contourne le problème de timing de cache Python |
+| `KeyError: 'Joint'` dans `_maj_synthese` | Clés de `_synth_vals` rendues stables en anglais, indépendantes de la langue active |
+| Noms de fluides non traduits | Clés internes de `materiaux.json` migrées vers l'anglais ; `en.json` et `fr.json` couvrent tous les fluides |
+| Champ matériau toujours en anglais | `_nom_mat()` : import du module i18n à chaque appel plutôt que liaison à l'import |
+| Modules non rechargés entre deux lancements | `prerequis_helper` et `helper_i18n` ajoutés à la liste de purge du cache Python dans `ORing.py` |
+
+---
+
+## Structure des fichiers ajoutés
+
+```
+ORing/
+├── lang.txt                     ← optionnel : forcer la langue (ex. "fr")
+├── locales/
+│   ├── en.json                  ← référence anglais
+│   ├── fr.json                  ← traductions françaises
+│   ├── helper_en.json           ← guide d'aide anglais
+│   └── helper_fr.json           ← guide d'aide français
+└── modules/
+    ├── i18n.py                  ← moteur i18n
+    ├── helper_i18n.py           ← chargement JSON structuré pour le guide
+    └── prerequis_helper.py      ← dialogue guide de démarrage multi-pages
+```
+
+---
+
+## Migration depuis v2.1
+
+1. Copier les nouveaux fichiers dans le dossier `ORing/`
+2. Remplacer `ORing.py`, `modules/dialogue.py`, `modules/i18n.py`
+3. Remplacer `data/materiaux.json` (clés de fluides migrées vers l'anglais)
+4. Aucune modification des fichiers de données `joints_standards.json` et `parametres_calcul.json`
+
+> **Note :** `lang.txt` n'est pas nécessaire au fonctionnement — la langue est auto-détectée depuis les préférences FreeCAD. Le créer uniquement pour forcer une langue spécifique ou pendant le développement.
 
 ## Features
 
