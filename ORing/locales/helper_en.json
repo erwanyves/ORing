@@ -1,0 +1,106 @@
+{
+  "helper": {
+    "title": "Prerequisites — Getting Started Guide",
+    "app_subtitle": "ORing Macro · FreeCAD 1.0",
+    "page_of": "Page {cur} / {total}",
+    "prev": "← Previous",
+    "next": "Next →",
+    "finish": "Done ✓",
+    "close": "Close",
+    "pages": [
+      {
+        "badge": "Step 1 / 5",
+        "title": "FreeCAD document structure",
+        "subtitle": "At least two Bodies are required",
+        "type": "rows",
+        "items": [
+          "A <b>Body</b> holding the <b>groove</b> — shaft or bore depending on the case.",
+          "A Body for the <b>mating part</b> — bore or shaft, i.e. the complementary case.",
+          "Each Body is <b>fully modelled</b> at its nominal size, with no groove.",
+          "The document is saved and recomputed without errors (<i>Model → Refresh</i>)."
+        ],
+        "tip": "The macro creates the groove itself. Do not sketch it manually beforehand."
+      },
+      {
+        "badge": "Step 2 / 5",
+        "title": "Mandatory named parameters",
+        "subtitle": "One radius or diameter parameter in each Body",
+        "type": "rows",
+        "items": [
+          "In each relevant Body, a <b>named parameter</b> must exist to define the radius or diameter of the sealing surface.",
+          "This parameter must be <b>linked to the Body geometry</b> — the macro uses it to compute squeeze and size the groove.",
+          "The macro will ask you to <b>select this parameter</b> from a drop-down list — short, descriptive names are recommended (e.g. <code>D_shaft</code>, <code>R_bore</code>)."
+        ],
+        "tip": "If the parameter represents a radius, prefix it with <code>R_</code> or <code>r_</code> — the macro adjusts its calculation accordingly."
+      },
+      {
+        "badge": "Step 3 / 5",
+        "title": "Local Coordinate System (LCS)",
+        "subtitle": "Axial positioning reference for the groove",
+        "type": "rows",
+        "items": [
+          "Insert an <b>LCS (Local Coordinate System)</b> in the groove-bearing Body, at the exact location of the desired <b>groove mid-plane</b>.",
+          "The <b>Z axis of the LCS</b> must be aligned with the part's revolution axis — i.e. the groove's axis of symmetry.",
+          "The LCS can be constrained to a face, a reference plane or positioned by dimension — as long as it follows the axial parameter of the part.",
+          "Give the LCS a <b>meaningful name</b> — the macro lists all LCS objects available in the selected Body."
+        ]
+      },
+      {
+        "badge": "Step 4 / 5",
+        "title": "Technical service data",
+        "subtitle": "Have these ready before opening the dialog",
+        "type": "table",
+        "headers": [
+          "Data",
+          "Typical values",
+          "Importance"
+        ],
+        "rows": [
+          [
+            "Assembly type",
+            "Static · Dynamic translation · Rotation",
+            "Critical|critique"
+          ],
+          [
+            "Groove location",
+            "On shaft · In bore",
+            "Critical|critique"
+          ],
+          [
+            "Max pressure (bar)",
+            "0 – 500 bar",
+            "Important|important"
+          ],
+          [
+            "Temperatures (°C)",
+            "min / max operating range",
+            "Important|important"
+          ],
+          [
+            "Fluid in contact",
+            "Oil, water, gas, fuel…",
+            "Useful|utile"
+          ],
+          [
+            "Desired material",
+            "NBR · FKM · EPDM · VMQ…",
+            "Useful|utile"
+          ]
+        ]
+      },
+      {
+        "badge": "Step 5 / 5",
+        "title": "Final checklist",
+        "subtitle": "Before clicking \"Launch macro\"",
+        "type": "rows",
+        "items": [
+          "FreeCAD set to <b>Standard unit system (mm, kg, s, °)</b> — menu <i>Edit → Preferences → General → Units</i>.",
+          "Both Bodies recomputed with no yellow warning triangle or error icon in the model tree.",
+          "The LCS is positioned at the exact <b>groove mid-plane</b>, Z axis aligned with the revolution axis.",
+          "Service data (pressure, fluid, assembly type) are known."
+        ],
+        "tip": "All set? Close this guide and click <b>Launch macro</b> in the main dialog."
+      }
+    ]
+  }
+}

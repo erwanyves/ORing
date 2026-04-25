@@ -1,0 +1,106 @@
+{
+  "helper": {
+    "title": "Prérequis — Guide de démarrage",
+    "app_subtitle": "Macro ORing · FreeCAD 1.0",
+    "page_of": "Page {cur} / {total}",
+    "prev": "← Précédent",
+    "next": "Suivant →",
+    "finish": "Fin ✓",
+    "close": "Fermer",
+    "pages": [
+      {
+        "badge": "Étape 1 / 5",
+        "title": "Structure du document FreeCAD",
+        "subtitle": "Deux corps minimum sont nécessaires",
+        "type": "rows",
+        "items": [
+          "Un corps <b>(Body)</b> portant la <b>gorge</b> — arbre ou alésage selon le cas.",
+          "Un corps pour la <b>pièce complémentaire</b> — alésage ou arbre, selon le cas inverse.",
+          "Chaque corps est <b>entièrement modélisé</b> à sa cote nominale, sans gorge.",
+          "Le document est sauvegardé et recalculé sans erreur (<i>Model → Refresh</i>)."
+        ],
+        "tip": "La macro crée elle-même la gorge. Ne pas l'ébaucher manuellement au préalable."
+      },
+      {
+        "badge": "Étape 2 / 5",
+        "title": "Paramètres nommés obligatoires",
+        "subtitle": "Un paramètre de rayon ou de diamètre dans chaque corps",
+        "type": "rows",
+        "items": [
+          "Dans chaque corps concerné, un <b>paramètre nommé</b> doit exister pour définir le rayon ou le diamètre de la surface d'étanchéité.",
+          "Ce paramètre doit être <b>lié à la géométrie</b> du corps — la macro s'en sert pour calculer le serrage et dimensionner la gorge.",
+          "La macro demandera de <b>sélectionner ce paramètre</b> dans une liste déroulante — des noms courts et explicites sont conseillés (ex. <code>D_arbre</code>, <code>R_alesage</code>)."
+        ],
+        "tip": "Si le paramètre désigne un rayon, le préfixer avec <code>R_</code> ou <code>r_</code> — la macro adapte son calcul en conséquence."
+      },
+      {
+        "badge": "Étape 3 / 5",
+        "title": "Système de coordonnées local (LCS)",
+        "subtitle": "Référence de positionnement axial de la gorge",
+        "type": "rows",
+        "items": [
+          "Insérer un <b>LCS (Local Coordinate System)</b> dans le corps porteur de la gorge, à l'emplacement exact du <b>plan médian souhaité</b> pour la gorge.",
+          "L'<b>axe Z du LCS</b> doit être aligné avec l'axe de révolution de la pièce — c'est-à-dire l'axe de symétrie de la gorge.",
+          "Le LCS peut être contraint sur une face, un plan de référence ou positionné par cote — pourvu qu'il suive le paramètre axial de la pièce.",
+          "Donner au LCS un <b>nom parlant</b> — la macro liste tous les LCS disponibles dans le corps sélectionné."
+        ]
+      },
+      {
+        "badge": "Étape 4 / 5",
+        "title": "Informations techniques de service",
+        "subtitle": "À avoir sous la main avant d'ouvrir le dialogue",
+        "type": "table",
+        "headers": [
+          "Donnée",
+          "Valeurs courantes",
+          "Importance"
+        ],
+        "rows": [
+          [
+            "Type d'assemblage",
+            "Statique · Dynamique translation · Rotation",
+            "Critique|critique"
+          ],
+          [
+            "Position de la gorge",
+            "Sur arbre · Dans alésage",
+            "Critique|critique"
+          ],
+          [
+            "Pression max (bar)",
+            "0 – 500 bar",
+            "Important|important"
+          ],
+          [
+            "Températures (°C)",
+            "min / max d'utilisation",
+            "Important|important"
+          ],
+          [
+            "Fluide en contact",
+            "Huile, eau, gaz, carburant…",
+            "Utile|utile"
+          ],
+          [
+            "Matériau souhaité",
+            "NBR · FKM · EPDM · VMQ…",
+            "Utile|utile"
+          ]
+        ]
+      },
+      {
+        "badge": "Étape 5 / 5",
+        "title": "Vérification finale",
+        "subtitle": "Avant de cliquer sur \"Lancer la macro\"",
+        "type": "rows",
+        "items": [
+          "FreeCAD configuré en <b>Système Standard (mm, kg, s, °)</b> — menu <i>Édition → Préférences → Général → Unités</i>.",
+          "Les deux corps recalculés sans triangle jaune ni icône d'erreur dans le modèle.",
+          "Le LCS est positionné au <b>plan médian</b> exact de la future gorge, axe Z aligné avec l'axe de révolution.",
+          "Les données de service (pression, fluide, type d'assemblage) sont connues."
+        ],
+        "tip": "Tout est prêt ? Fermez ce guide et cliquez sur <b>Lancer la macro</b> dans le dialogue principal."
+      }
+    ]
+  }
+}
