@@ -6146,6 +6146,119 @@ def _fermer_taches_actives():
         return True   # En cas d'erreur, toujours laisser passer
 
 
+# =============================================================================
+# DIALOGUE ERREUR PRÉREQUIS
+# =============================================================================
+
+def _ouvrir_guide_prerequis(parent=None):
+    """
+    Ouvre le guide de démarrage en mode autonome (avant le dialogue principal).
+    Réplique de DialogueORing._ouvrir_aide(), sans dépendance à self.
+    """
+    try:
+        from .prerequis_helper import PrerequisHelper
+        from .helper_i18n import make_tr
+        from . import i18n as _i18n_mod
+        import json as _json
+        import os as _os
+
+        lang = _i18n_mod.get_lang()
+        _locales = _os.path.normpath(
+            _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                          '..', 'locales')
+        )
+        translations = {}
+        for candidate in (lang, 'en'):
+            path = _os.path.join(_locales, f'helper_{candidate}.json')
+            if _os.path.isfile(path):
+                with open(path, 'r', encoding='utf-8') as _f:
+                    translations.update(_json.load(_f))
+                break
+
+        tr_helper = make_tr(translations)
+        dlg = PrerequisHelper(tr=tr_helper, parent=parent)
+        dlg.exec_()
+
+    except Exception as _e:
+        print(f"[ORing] _ouvrir_guide_prerequis ERREUR : {_e}")
+        import traceback; traceback.print_exc()
+
+
+class _DialoguePrerequisErreur(QtWidgets.QDialog):
+    """
+    Fenêtre d'erreur affichée quand le document ne satisfait pas les
+    prérequis de la macro (LCS + paramètre nommé).
+
+    Internationalisée via tr(). Propose un bouton « Ouvrir le guide »
+    qui lance PrerequisHelper avant de fermer la fenêtre d'erreur.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.ouvrir_guide = False
+        self.setWindowTitle(tr("ORing — Prerequisites not met"))
+        self.setWindowFlags(
+            self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint
+        )
+        self._construire()
+
+    def _construire(self):
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 18, 20, 16)
+
+        # ── Ligne icône + titre ───────────────────────────────────────────
+        titre_row = QtWidgets.QHBoxLayout()
+        icone = QtWidgets.QLabel()
+        icone.setPixmap(
+            self.style()
+            .standardIcon(QtWidgets.QStyle.SP_MessageBoxWarning)
+            .pixmap(32, 32)
+        )
+        titre_row.addWidget(icone)
+        titre_lbl = QtWidgets.QLabel(
+            f"<b>{tr('ORing — Prerequisites not met')}</b>"
+        )
+        titre_lbl.setTextFormat(QtCore.Qt.RichText)
+        titre_row.addWidget(titre_lbl, 1)
+        layout.addLayout(titre_row)
+
+        # ── Séparateur ────────────────────────────────────────────────────
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+        layout.addWidget(sep)
+
+        # ── Corps du message ──────────────────────────────────────────────
+        msg = QtWidgets.QLabel(_MSG_PREREQUIS)
+        msg.setWordWrap(True)
+        msg.setTextFormat(QtCore.Qt.PlainText)
+        layout.addWidget(msg)
+
+        layout.addStretch()
+
+        # ── Boutons ───────────────────────────────────────────────────────
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.addStretch()
+
+        btn_guide = QtWidgets.QPushButton(tr("? Open guide"))
+        btn_guide.clicked.connect(self._on_guide)
+        btn_row.addWidget(btn_guide)
+
+        btn_fermer = QtWidgets.QPushButton(tr("Close"))
+        btn_fermer.setDefault(True)
+        btn_fermer.clicked.connect(self.accept)
+        btn_row.addWidget(btn_fermer)
+
+        layout.addLayout(btn_row)
+        self.setMinimumWidth(480)
+
+    def _on_guide(self):
+        """Mémorise la demande d'ouverture du guide et ferme ce dialogue."""
+        self.ouvrir_guide = True
+        self.accept()
+
+
 def lancer_dialogue():
     """
     Point d'entrée de la macro.
@@ -6177,11 +6290,10 @@ def lancer_dialogue():
         doc = None
 
     if doc is not None and not doc_a_bodies_valides(doc):
-        QtWidgets.QMessageBox.information(
-            None,
-            "ORing — Prérequis non satisfaits",
-            _MSG_PREREQUIS
-        )
+        _dlg_err = _DialoguePrerequisErreur(None)
+        _dlg_err.exec_()
+        if _dlg_err.ouvrir_guide:
+            _ouvrir_guide_prerequis(parent=None)
         return None
     # ─────────────────────────────────────────────────────────────────────────
 

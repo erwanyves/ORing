@@ -248,5 +248,9 @@
   "Polytetrafluoroethylene": "Polytetrafluoroethylene",
   "Perfluoroelastomer (Kalrez®, Simriz®)": "Perfluoroelastomer (Kalrez®, Simriz®)",
   "Manual": "Manual",
-  "— select —": "— select —"
+  "— select —": "— select —",
+  "──────────── dialogue.py — Fenêtre erreur prérequis ────────────": "──────────────────────────────────────────",
+  "ORing — Prerequisites not met": "ORing — Prerequisites not met",
+  "To use this macro, your document must contain:\n\n  • At least one Body to receive the groove\n    → This body must have a LCS (for sketch attachment)\n      and a named parameter defining the diameter or radius.\n\n  • At least one complementary Body\n    → This body must have a named parameter defining\n      the diameter or radius.\n\nThe macro will close.\nPlease prepare your bodies and restart.": "To use this macro, your document must contain:\n\n  • At least one Body to receive the groove\n    → This body must have a LCS (for sketch attachment)\n      and a named parameter defining the diameter or radius.\n\n  • At least one complementary Body\n    → This body must have a named parameter defining\n      the diameter or radius.\n\nThe macro will close.\nPlease prepare your bodies and restart.",
+  "? Open guide": "? Open guide"
 }
