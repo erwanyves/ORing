@@ -9,7 +9,14 @@ A parametric FreeCAD macro for designing, inserting, and managing O-ring groove 
 
 **Supported standards:** ISO 3601 · DIN 3771 · JIS B2401 · METRIC  
 **Author:** Yves Guillou · **Version:** 2.1 · **License:** LGPL v2.1
+---
+# ORing — Release Notes v2.3
 
+**Date:** May 2026  
+**Compatibility:** FreeCAD 1.1+ · Python 3.x · PySide6
+Some improvements, 
+compatibility with pyside6
+bug correction
 ---
 # ORing — Release Notes v2.2
 
