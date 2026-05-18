@@ -1,3 +1,4 @@
+# Chemin : modules/i18n.py
 # -*- coding: utf-8 -*-
 """
 ORing/modules/i18n.py  —  Internationalisation.
@@ -97,7 +98,10 @@ def _detecter() -> str:
         pass
 
     try:
-        from PySide2.QtCore import QLocale
+        try:
+            from PySide2.QtCore import QLocale
+        except ImportError:
+            from PySide6.QtCore import QLocale
         raw = QLocale.system().name()
         c = _code(raw)
         if c:
@@ -184,3 +188,4 @@ def tr(text: str, **kwargs) -> str:
 
 def get_lang() -> str:
     return _lang_code
+

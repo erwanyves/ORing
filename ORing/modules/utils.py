@@ -26,7 +26,10 @@ from .i18n import tr
 try:
     import FreeCAD as App
     import FreeCADGui as Gui
-    from PySide2 import QtWidgets
+    try:
+        from PySide2 import QtWidgets
+    except ImportError:
+        from PySide6 import QtWidgets
     FREECAD_DISPONIBLE = True
 except ImportError:
     FREECAD_DISPONIBLE = False
@@ -521,3 +524,4 @@ if __name__ == '__main__':
 
     message_info("Test", "Message d'information (mode console)")
     message_avertissement("Test", "Avertissement (mode console)")
+

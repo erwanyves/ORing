@@ -51,7 +51,10 @@ Interface monopage remplacant les 4 onglets :
 try:
     import FreeCAD as App
     import FreeCADGui as Gui
-    from PySide2 import QtWidgets, QtCore, QtGui
+    try:
+        from PySide2 import QtWidgets, QtCore, QtGui
+    except ImportError:
+        from PySide6 import QtWidgets, QtCore, QtGui
     FREECAD_DISPONIBLE = True
 except ImportError:
     FREECAD_DISPONIBLE = False
@@ -187,8 +190,12 @@ class _DiagrammeAjustement(QtWidgets.QWidget):
     def paintEvent(self, event):
         if not FREECAD_DISPONIBLE:
             return
-        from PySide2.QtGui import QPainter, QColor, QPen, QFont
-        from PySide2.QtCore import Qt, QRectF
+        try:
+            from PySide2.QtGui import QPainter, QColor, QPen, QFont
+            from PySide2.QtCore import Qt, QRectF
+        except ImportError:
+            from PySide6.QtGui import QPainter, QColor, QPen, QFont
+            from PySide6.QtCore import Qt, QRectF
 
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -749,7 +756,10 @@ class _TableJointsHover(QtWidgets.QTableWidget):
         if self._locked_row >= 0:
             return  # ligne verrouillée — pas de hover libre
         try:
-            from PySide2.QtGui import QCursor
+            try:
+                from PySide2.QtGui import QCursor
+            except ImportError:
+                from PySide6.QtGui import QCursor
             pos_global = QCursor.pos()
             pos_local  = self.viewport().mapFromGlobal(pos_global)
             row = self.rowAt(pos_local.y())
@@ -795,6 +805,21 @@ class DialogueORing(QtWidgets.QDialog):
         # Snapshot de l'état visuel initial — restauré à la fermeture
         _prendre_snapshot(self._doc)
         self._build_ui()
+        # Verrouiller la taille après rendu initial pour éviter l'agrandissement
+        # lors d'un changement d'écran (DPI différent sous Qt6/PySide6).
+        QtCore.QTimer.singleShot(0, self._verrouiller_taille)
+
+    # ------------------------------------------------------------------
+    def _verrouiller_taille(self):
+        """Fixe la hauteur maximale du dialogue à sa hauteur courante.
+        Appelé via QTimer.singleShot(0) après _build_ui pour laisser Qt
+        calculer la taille naturelle avant de la verrouiller.
+        Évite l'agrandissement intempestif lors d'un changement d'écran
+        (écrans avec des DPI différents sous Qt6 / PySide6).
+        """
+        h = self.height()
+        if h > 100:   # sécurité : ne pas verrouiller si pas encore visible
+            self.setMaximumHeight(h)
 
     # ------------------------------------------------------------------
     def _build_ui(self):
@@ -848,18 +873,12 @@ class DialogueORing(QtWidgets.QDialog):
 
         # ── Boutons (hors onglets) ────────────────────────────────────────
         bl = QtWidgets.QHBoxLayout()
-        # Bouton aide — texte simple, compatible tous thèmes FreeCAD
-        self.btn_aide = QtWidgets.QPushButton(tr("? Help"))
-        self.btn_aide.setToolTip(tr("Help — Getting Started Guide"))
-        self.btn_aide.clicked.connect(self._ouvrir_aide)
         self.btn_appliquer = QtWidgets.QPushButton(tr("Apply in FreeCAD"))
         self.btn_fermer    = QtWidgets.QPushButton(tr("Close"))
         self.btn_appliquer.setEnabled(False)
 
         self.btn_appliquer.clicked.connect(self._on_appliquer)
         self.btn_fermer.clicked.connect(self.reject)
-        bl.addWidget(self.btn_aide)
-        bl.addStretch()
         bl.addWidget(self.btn_appliquer)
         bl.addStretch()
         bl.addWidget(self.btn_fermer)
@@ -1660,46 +1679,6 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         except Exception as e:
             print(f"[ORing] _fin_highlight AVERT : {e}")
 
-
-    def _ouvrir_aide(self):
-        """Ouvre le guide de démarrage (PrerequisHelper)."""
-        try:
-            from .prerequis_helper import PrerequisHelper
-            from .helper_i18n import merge_helper_translations, make_tr
-
-            # Construire un dict de traductions dédié au helper
-            # en chargeant helper_<lang>.json sans dépendre de i18n.make_tr
-            from . import i18n as _i18n_mod
-            lang = _i18n_mod.get_lang()
-
-            import json, os
-            _locales = os.path.normpath(
-                os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             '..', 'locales')
-            )
-            translations = {}
-            # Charger helper_<lang>.json, fallback helper_en.json
-            for candidate in (lang, 'en'):
-                path = os.path.join(_locales, f'helper_{candidate}.json')
-                if os.path.isfile(path):
-                    with open(path, 'r', encoding='utf-8') as _f:
-                        translations.update(json.load(_f))
-                    break
-
-            tr_helper = make_tr(translations)
-            dlg = PrerequisHelper(tr=tr_helper, parent=self)
-            dlg.exec_()
-        except Exception as e:
-            print(f"[ORing] _ouvrir_aide ERREUR : {e}")
-            import traceback; traceback.print_exc()
-            try:
-                QtWidgets.QMessageBox.warning(
-                    self, "ORing — Aide",
-                    f"Impossible d'ouvrir le guide :\n{e}"
-                )
-            except Exception:
-                pass
-
     def _ouvrir_depuis_selection(self, part):
         """
         Ouvre directement le dialogue en mode modification sur l'onglet 2
@@ -1748,6 +1727,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         except Exception:
             pass
         self._meta_en_cours = meta   # pour _debut_highlight dans _entrer_mode_modification
+        self._etendre_listes_bodies_modif(meta)
         self._prefill_depuis_meta(meta)
         self._entrer_mode_modification(part, meta)
         self._tabs.setCurrentIndex(1)   # onglet 2 (index 1)
@@ -1823,9 +1803,57 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         # Retirer le highlight verrouillé : on quitte la vue tableau
         self.table_joints.deverrouiller()
         self._meta_en_cours = meta   # pour _debut_highlight dans _entrer_mode_modification
+        # En mode modification, le body portant la gorge peut avoir tous ses LCS
+        # occupés (par d'autres joints) → lister_bodies_valides_gorge l'exclut.
+        # On élargit temporairement la liste des deux widgets pour que _prefill
+        # puisse trouver et sélectionner les bons bodies.
+        self._etendre_listes_bodies_modif(meta)
         self._prefill_depuis_meta(meta)
         self._entrer_mode_modification(part, meta)
         self._tabs.setCurrentIndex(1)   # basculer sur onglet 2
+
+    def _etendre_listes_bodies_modif(self, meta: dict):
+        """
+        En mode modification, élargit les listes de bodies des deux widgets
+        pour inclure le body portant la gorge et le body complémentaire,
+        même si leurs LCS sont tous occupés par des joints existants.
+        Sans cela, _prefill_depuis_meta ne peut pas trouver les bodies dans
+        les combos et _saisie_complete() retourne False.
+        """
+        if not self._doc:
+            return
+        try:
+            from .utils import lister_bodies, lister_bodies_valides_comp
+            tous = lister_bodies(self._doc)
+
+            # Pièce principale : tous les bodies non-ORing avec paramètre
+            bodies_gorge_elargi = lister_bodies_valides_comp(self._doc)
+            # S'assurer que le body de la gorge est bien dedans
+            _gorge_name  = meta.get('body_gorge_name', '')
+            _gorge_label = meta.get('body_gorge_label', '')
+            for b in tous:
+                if ((_gorge_name  and b.Name  == _gorge_name)
+                        or (_gorge_label and b.Label == _gorge_label)):
+                    if b not in bodies_gorge_elargi:
+                        bodies_gorge_elargi = [b] + bodies_gorge_elargi
+                    break
+            if hasattr(self, 'widget_piece_principale'):
+                self.widget_piece_principale.set_bodies(bodies_gorge_elargi)
+
+            # Pièce complémentaire : même logique
+            bodies_comp_elargi = lister_bodies_valides_comp(self._doc)
+            _comp_name  = meta.get('body_comp_name', '')
+            _comp_label = meta.get('body_comp_label', '')
+            for b in tous:
+                if ((_comp_name  and b.Name  == _comp_name)
+                        or (_comp_label and b.Label == _comp_label)):
+                    if b not in bodies_comp_elargi:
+                        bodies_comp_elargi = [b] + bodies_comp_elargi
+                    break
+            if hasattr(self, 'widget_piece_complementaire'):
+                self.widget_piece_complementaire.set_bodies(bodies_comp_elargi)
+        except Exception as _e:
+            print(f"[ORing] _etendre_listes_bodies_modif AVERT : {_e}")
 
     def _prefill_depuis_meta(self, meta: dict):
         """
@@ -1840,10 +1868,6 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             model = combo.model()
             for i in range(combo.count()):
                 if combo.itemData(i) == valeur:
-                    # Vérifier que l'item est activé (pas grisé)
-                    item = model.item(i) if model else None
-                    if item is not None and not item.isEnabled():
-                        return False   # item grisé → ne pas sélectionner
                     combo.blockSignals(True)
                     combo.setCurrentIndex(i)
                     combo.blockSignals(False)
@@ -2193,8 +2217,12 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             # Mettre à jour le texte du dialogue de progression
             if dlg_progression is not None:
                 try:
-                    from PySide2.QtWidgets import QApplication
-                    from PySide2.QtCore    import QEventLoop
+                    try:
+                        from PySide2.QtWidgets import QApplication
+                        from PySide2.QtCore    import QEventLoop
+                    except ImportError:
+                        from PySide6.QtWidgets import QApplication
+                        from PySide6.QtCore    import QEventLoop
                     dlg_progression.setText(tr(
                         "Updating linked seals...\n\nSeal {n}/{total}: {label}",
                         n=_n_joint_courant, total=_n_total_joints, label=_label_joint)
@@ -2513,8 +2541,12 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             except Exception:
                 pass
             try:
-                from PySide2.QtWidgets import QApplication
-                from PySide2.QtCore    import QEventLoop
+                try:
+                    from PySide2.QtWidgets import QApplication
+                    from PySide2.QtCore    import QEventLoop
+                except ImportError:
+                    from PySide6.QtWidgets import QApplication
+                    from PySide6.QtCore    import QEventLoop
                 QApplication.processEvents(
                     QEventLoop.ExcludeUserInputEvents
                     | QEventLoop.ExcludeSocketNotifiers)
@@ -2906,7 +2938,11 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             from PySide2.QtGui  import QStandardItemModel, QStandardItem, QBrush, QColor
             from PySide2.QtCore import Qt
         except ImportError:
-            return
+            try:
+                from PySide6.QtGui  import QStandardItemModel, QStandardItem, QBrush, QColor
+                from PySide6.QtCore import Qt
+            except ImportError:
+                return
 
         std      = self.combo_standard.currentData()
         position = self.combo_position.currentData() if hasattr(self, 'combo_position') else 'arbre'
@@ -3016,13 +3052,14 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     # Compatible mais avec avertissement (stretch 3–5%)
                     label = f'{s}  (Ø {d2_val} mm)  {raison}'
                 else:
-                    label = f'{s}  (Ø {d2_val} mm)  — {raison}'
+                    label = f'{s}  (Ø {d2_val} mm)  ⚠ {tr("not recommended")}'
 
                 item = QStandardItem(label)
                 item.setData(s, Qt.UserRole)
                 if not compatible:
-                    item.setEnabled(False)
-                    item.setForeground(QBrush(QColor(150, 150, 150)))
+                    # Sélectionnable mais visuellement signalé en rouge
+                    item.setForeground(QBrush(QColor(180, 60, 60)))
+                    item.setToolTip(tr("Not recommended: ") + raison)
                 elif raison:
                     # Accepté mais affiché en orange pour le warning
                     item.setForeground(QBrush(QColor(180, 100, 0)))
@@ -3031,30 +3068,17 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         self.combo_serie.blockSignals(True)
         self.combo_serie.setModel(model)
 
-        # Restaurer la sélection précédente uniquement si encore compatible
+        # Restaurer la sélection précédente (y compris les séries non recommandées)
         restored = False
         if serie_courante:
             for i in range(model.rowCount()):
                 it = model.item(i)
-                if it and it.data(Qt.UserRole) == serie_courante and it.isEnabled():
+                if it and it.data(Qt.UserRole) == serie_courante:
                     self.combo_serie.setCurrentIndex(i)
                     restored = True
                     break
         if not restored:
             self.combo_serie.setCurrentIndex(0)
-
-        # Garantie : l'item sélectionné ne doit jamais être un item grisé.
-        # Si l'index courant pointe sur un item disabled, chercher le prochain
-        # item enabled (en commençant par Auto=0).
-        _idx_cur = self.combo_serie.currentIndex()
-        _cur_item = model.item(_idx_cur)
-        if _cur_item and not _cur_item.isEnabled():
-            # Chercher le premier item enabled
-            for i in range(model.rowCount()):
-                _it = model.item(i)
-                if _it and _it.isEnabled():
-                    self.combo_serie.setCurrentIndex(i)
-                    break
 
         self.combo_serie.blockSignals(False)
 
@@ -3330,16 +3354,22 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             # Pas de doc FreeCAD : on n'interdit pas le calcul (diamètre manuel)
             return True
         if not self.widget_piece_principale.est_complete():
+            _b = self.widget_piece_principale.combo_body.currentData()
+            _p = self.widget_piece_principale.combo_param.currentData()
+            print(f"[ORing DIAG] _saisie_complete FAUX — widget_piece_principale: body={_b}, param={_p}")
             return False
         if not hasattr(self, 'combo_lcs'):
+            print("[ORing DIAG] _saisie_complete FAUX — combo_lcs absent")
             return False
         if self.combo_lcs.currentData() is None:
+            print(f"[ORing DIAG] _saisie_complete FAUX — combo_lcs.currentData()=None (count={self.combo_lcs.count()})")
             return False
         # En mode modification, la pièce complémentaire est gelée (non
         # modifiable) et son diamètre est stocké dans _d_comp_ref_modif.
         # On ne bloque pas le calcul sur ce widget.
         if self._part_en_modification is None:
             if not self.widget_piece_complementaire.est_complete():
+                print("[ORing DIAG] _saisie_complete FAUX — widget_piece_complementaire incomplet")
                 return False
         return True
 
@@ -3620,7 +3650,10 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             # Annuler le timer précédent et le relancer — seul le dernier
             # déclenchement (après 50ms de silence) lance le vrai calcul.
             if not hasattr(self, '_timer_calcul'):
-                from PySide2.QtCore import QTimer
+                try:
+                    from PySide2.QtCore import QTimer
+                except ImportError:
+                    from PySide6.QtCore import QTimer
                 self._timer_calcul = QTimer(self)
                 self._timer_calcul.setSingleShot(True)
                 self._timer_calcul.timeout.connect(lambda: self._on_calculer(_force=True))
@@ -3707,7 +3740,12 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             pass  # idem
 
         doc_ok = self._doc is not None
-        self.btn_appliquer.setEnabled(self._resultat.valide and doc_ok)
+        # Activer si la géométrie est calculée (d1, h, b présents),
+        # que la série soit recommandée ou non (les alertes sont visibles dans les résultats).
+        _geom_disponible = (self._resultat.d1 is not None
+                            and self._resultat.h  is not None
+                            and self._resultat.b  is not None)
+        self.btn_appliquer.setEnabled(_geom_disponible and doc_ok)
         # Griser Calculer : recalcul inutile tant que la saisie n'a pas changé
 
     def _formater_resultat(self, r):
@@ -3760,12 +3798,17 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
 
           3. PartDesign::Mirrored par plan XY => gorge complete
         """
+        print(f"[ORing DIAG] _on_appliquer — en_cours={self._appliquer_en_cours}  "
+              f"resultat={'OK' if self._resultat else 'None'}  "
+              f"doc={'OK' if self._doc else 'None'}  "
+              f"btn_enabled={self.btn_appliquer.isEnabled()}")
         # ── Guard anti-réentrance : empêche toute boucle déclenchée par
         # processEvents() ou QTimer.singleShot() pendant l'application ──
         if self._appliquer_en_cours:
-            print("[ORing] _on_appliquer réentrant ignoré")
+            print("[ORing DIAG] _on_appliquer: BLOQUÉ — réentrance")
             return
         if not self._resultat or not self._doc:
+            print("[ORing DIAG] _on_appliquer: BLOQUÉ — résultat ou doc manquant")
             return
         self._appliquer_en_cours = True
         try:
@@ -3775,7 +3818,12 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
 
     def _on_appliquer_interne(self):
         """Corps réel de _on_appliquer, protégé par le guard de réentrance."""
+        print(f"[ORing DIAG] _on_appliquer_interne — "
+              f"part_modif={'oui' if self._part_en_modification else 'non'}  "
+              f"resultat.valide={getattr(self._resultat,'valide','?')}  "
+              f"resultat.d1={getattr(self._resultat,'d1','?')}")
         if not self._resultat or not self._doc:
+            print("[ORing DIAG] _on_appliquer_interne: BLOQUÉ — résultat ou doc None")
             return
 
         # ── Recalcul systématique avant application ──────────────────────────
@@ -4159,7 +4207,16 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 if not _fast_path_materiau:
                     # Forcer un recalcul avec les valeurs UI courantes
                     self._on_calculer(_force=True)
-                    if not self._resultat or not self._resultat.valide:
+                    # Autoriser si la géométrie est calculée (d1, h, b),
+                    # même pour une série hors plage choisie explicitement.
+                    _geom_dispo = (self._resultat is not None
+                                   and self._resultat.d1 is not None
+                                   and self._resultat.h  is not None)
+                    print(f"[ORing DIAG] mode modif — fast_path={_fast_path_materiau}  "
+                          f"_geom_dispo={_geom_dispo}  "
+                          f"valide={getattr(self._resultat,'valide','?')}  "
+                          f"d1={getattr(self._resultat,'d1','?')}")
+                    if not _geom_dispo:
                         message_erreur(tr("ORing — Recalculation"),
                             tr("Recalculation with the new diameter failed or produced\n"
                             "an invalid result. Check the parameters.")
@@ -4532,14 +4589,19 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             if not (hasattr(Gui, 'ActiveDocument') and Gui.ActiveDocument):
                 return
             view = Gui.ActiveDocument.ActiveView
-            # Chercher le body gorge par label
+            # Chercher le body gorge — accepte une string label OU un objet FreeCAD
             body_gorge = None
-            if body_label:
-                for obj in doc.Objects:
-                    if (obj.TypeId == 'PartDesign::Body'
-                            and obj.Label == body_label):
-                        body_gorge = obj
-                        break
+            if body_label is not None:
+                if hasattr(body_label, 'TypeId'):
+                    # On a reçu directement l'objet FreeCAD
+                    body_gorge = body_label if body_label.TypeId == 'PartDesign::Body' else None
+                else:
+                    # On a reçu un label string
+                    for obj in doc.Objects:
+                        if (obj.TypeId == 'PartDesign::Body'
+                                and obj.Label == body_label):
+                            body_gorge = obj
+                            break
             # Désactiver tout body ORing actif et activer le body gorge
             view.setActiveObject('pdbody', body_gorge)
             if body_gorge:
@@ -5375,6 +5437,7 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
     nom_sketch_gorge = meta_existante.get('sketch_gorge_name', '')
     sketch_gorge = doc.getObject(nom_sketch_gorge) if nom_sketch_gorge else None
 
+    # ── Méthode 2 : chercher par label/LCS si le Name en métadonnées est périmé ──
     if sketch_gorge is None:
         # Fallback : discriminer par AttachmentSupport (LCS) + body d'appartenance
         # Deux joints sur le même body partagent le même préfixe de label —
@@ -5419,6 +5482,43 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
         print(f"[ORing modif] AVERT : sketch gorge introuvable "
               f"(name='{nom_sketch_gorge}', "
               f"body='{meta_existante.get('body_gorge_label','?')}')")
+        # ── Méthode 3 : remonter depuis le PartDesign::Groove existant ───────
+        # Plus fiable quand les métadonnées ont un nom périmé (ex. FreeCAD a
+        # auto-renommé le sketch lors de l'insertion et la métadonnée pointe
+        # vers l'ancien nom).
+        body_gorge_label3 = meta_existante.get('body_gorge_label', '')
+        body_gorge_name3  = meta_existante.get('body_gorge_name', '')
+        prefixe3 = 'GorgeArbre_' if position == 'arbre' else 'GorgeAlesage_'
+        for _obj in doc.Objects:
+            if getattr(_obj, 'TypeId', '') != 'PartDesign::Groove':
+                continue
+            # Vérifier que ce Groove appartient au body gorge
+            _in_body3 = any(
+                candidate.TypeId == 'PartDesign::Body'
+                and (candidate.Name == body_gorge_name3 or candidate.Label == body_gorge_label3)
+                and _obj in getattr(candidate, 'Group', [])
+                for candidate in doc.Objects
+            )
+            if not _in_body3:
+                continue
+            # Récupérer le sketch Profile de ce Groove
+            _profil = getattr(_obj, 'Profile', None)
+            if _profil is not None:
+                _sk = _profil[0] if isinstance(_profil, (list, tuple)) else _profil
+                if (getattr(_sk, 'TypeId', '') == 'Sketcher::SketchObject'
+                        and _sk.Label.startswith(prefixe3)):
+                    sketch_gorge = _sk
+                    print(f"[ORing modif] Sketch trouvé via Groove '{_obj.Name}' "
+                          f"(Profile) : '{_sk.Name}' (Label='{_sk.Label}')")
+                    # Corriger la métadonnée pour les prochaines fois
+                    meta_existante['sketch_gorge_name'] = _sk.Name
+                    break
+        if sketch_gorge is None:
+            print(f"[ORing modif DIAG] position={position}  "
+                  f"Sketches dans le doc :")
+            for _o in doc.Objects:
+                if _o.TypeId == 'Sketcher::SketchObject':
+                    print(f"  Name='{_o.Name}'  Label='{_o.Label}'")
     else:
         # ── Calcul des valeurs cibles ────────────────────────────────────────
         r_comp = d_comp_mm / 2.0
@@ -5437,6 +5537,10 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
         for _dc in sketch_gorge.Constraints:
             if _dc.Name.startswith(('Rayon', 'demiLargeur', 'Fillet', 'depouille')):
                 print(f"[ORing modif GORGE]   avant: '{_dc.Name}' = {_dc.Value:.4f}")
+        # DIAG alesage : lister TOUTES les contraintes nommées
+        if position == 'alesage':
+            noms_all = [(c.Name, c.Type) for c in sketch_gorge.Constraints if c.Name]
+            print(f"[ORing modif DIAG alesage] Contraintes nommées : {noms_all}")
 
         # ── Recherche du Body et des features PartDesign liés au sketch ──────
         body_gorge_obj = None
@@ -6146,119 +6250,6 @@ def _fermer_taches_actives():
         return True   # En cas d'erreur, toujours laisser passer
 
 
-# =============================================================================
-# DIALOGUE ERREUR PRÉREQUIS
-# =============================================================================
-
-def _ouvrir_guide_prerequis(parent=None):
-    """
-    Ouvre le guide de démarrage en mode autonome (avant le dialogue principal).
-    Réplique de DialogueORing._ouvrir_aide(), sans dépendance à self.
-    """
-    try:
-        from .prerequis_helper import PrerequisHelper
-        from .helper_i18n import make_tr
-        from . import i18n as _i18n_mod
-        import json as _json
-        import os as _os
-
-        lang = _i18n_mod.get_lang()
-        _locales = _os.path.normpath(
-            _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
-                          '..', 'locales')
-        )
-        translations = {}
-        for candidate in (lang, 'en'):
-            path = _os.path.join(_locales, f'helper_{candidate}.json')
-            if _os.path.isfile(path):
-                with open(path, 'r', encoding='utf-8') as _f:
-                    translations.update(_json.load(_f))
-                break
-
-        tr_helper = make_tr(translations)
-        dlg = PrerequisHelper(tr=tr_helper, parent=parent)
-        dlg.exec_()
-
-    except Exception as _e:
-        print(f"[ORing] _ouvrir_guide_prerequis ERREUR : {_e}")
-        import traceback; traceback.print_exc()
-
-
-class _DialoguePrerequisErreur(QtWidgets.QDialog):
-    """
-    Fenêtre d'erreur affichée quand le document ne satisfait pas les
-    prérequis de la macro (LCS + paramètre nommé).
-
-    Internationalisée via tr(). Propose un bouton « Ouvrir le guide »
-    qui lance PrerequisHelper avant de fermer la fenêtre d'erreur.
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.ouvrir_guide = False
-        self.setWindowTitle(tr("ORing — Prerequisites not met"))
-        self.setWindowFlags(
-            self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint
-        )
-        self._construire()
-
-    def _construire(self):
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 18, 20, 16)
-
-        # ── Ligne icône + titre ───────────────────────────────────────────
-        titre_row = QtWidgets.QHBoxLayout()
-        icone = QtWidgets.QLabel()
-        icone.setPixmap(
-            self.style()
-            .standardIcon(QtWidgets.QStyle.SP_MessageBoxWarning)
-            .pixmap(32, 32)
-        )
-        titre_row.addWidget(icone)
-        titre_lbl = QtWidgets.QLabel(
-            f"<b>{tr('ORing — Prerequisites not met')}</b>"
-        )
-        titre_lbl.setTextFormat(QtCore.Qt.RichText)
-        titre_row.addWidget(titre_lbl, 1)
-        layout.addLayout(titre_row)
-
-        # ── Séparateur ────────────────────────────────────────────────────
-        sep = QtWidgets.QFrame()
-        sep.setFrameShape(QtWidgets.QFrame.HLine)
-        sep.setFrameShadow(QtWidgets.QFrame.Sunken)
-        layout.addWidget(sep)
-
-        # ── Corps du message ──────────────────────────────────────────────
-        msg = QtWidgets.QLabel(_MSG_PREREQUIS)
-        msg.setWordWrap(True)
-        msg.setTextFormat(QtCore.Qt.PlainText)
-        layout.addWidget(msg)
-
-        layout.addStretch()
-
-        # ── Boutons ───────────────────────────────────────────────────────
-        btn_row = QtWidgets.QHBoxLayout()
-        btn_row.addStretch()
-
-        btn_guide = QtWidgets.QPushButton(tr("? Open guide"))
-        btn_guide.clicked.connect(self._on_guide)
-        btn_row.addWidget(btn_guide)
-
-        btn_fermer = QtWidgets.QPushButton(tr("Close"))
-        btn_fermer.setDefault(True)
-        btn_fermer.clicked.connect(self.accept)
-        btn_row.addWidget(btn_fermer)
-
-        layout.addLayout(btn_row)
-        self.setMinimumWidth(480)
-
-    def _on_guide(self):
-        """Mémorise la demande d'ouverture du guide et ferme ce dialogue."""
-        self.ouvrir_guide = True
-        self.accept()
-
-
 def lancer_dialogue():
     """
     Point d'entrée de la macro.
@@ -6290,11 +6281,20 @@ def lancer_dialogue():
         doc = None
 
     if doc is not None and not doc_a_bodies_valides(doc):
-        _dlg_err = _DialoguePrerequisErreur(None)
-        _dlg_err.exec_()
-        if _dlg_err.ouvrir_guide:
-            _ouvrir_guide_prerequis(parent=None)
-        return None
+        # Autoriser quand même si des joints ORing existent déjà dans le doc :
+        # l'utilisateur veut les modifier, pas en créer de nouveaux.
+        try:
+            from .metadata import lister_parts_oring
+            _joints_existants = lister_parts_oring(doc)
+        except Exception:
+            _joints_existants = []
+        if not _joints_existants:
+            QtWidgets.QMessageBox.information(
+                None,
+                "ORing — Prérequis non satisfaits",
+                _MSG_PREREQUIS
+            )
+            return None
     # ─────────────────────────────────────────────────────────────────────────
 
     # Recolorer les joints existants (créés avant l'ajout de la palette couleurs)
@@ -6403,3 +6403,4 @@ if __name__ == '__main__':
         afficher_synthese(r)
     else:
         lancer_dialogue()
+

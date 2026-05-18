@@ -1,3 +1,4 @@
+# Chemin : ORing.FCMacro
 # -*- coding: utf-8 -*-
 # Auteur  : Yves Guillou
 # Licence : LGPL
@@ -69,7 +70,6 @@ try:
                   'modules.utils', 'modules.joints', 'modules.materiaux',
                   'modules.metadata', 'modules.oring_3d',
                   'modules.sketch_arbre', 'modules.sketch_alesage',
-                  'modules.prerequis_helper', 'modules.helper_i18n',
                   'modules.__init__', 'modules'):
             del sys.modules[_m]
     print("[ORing] Cache modules métier purgé")
@@ -87,7 +87,10 @@ try:
     lancer_dialogue()
 except ImportError as e:
     try:
-        from PySide2 import QtWidgets
+        try:
+            from PySide2 import QtWidgets
+        except ImportError:
+            from PySide6 import QtWidgets
         QtWidgets.QMessageBox.critical(
             None, "ORing — Import error",
             f"Cannot load module:\n\n{e}\n\n"
@@ -96,3 +99,4 @@ except ImportError as e:
     except Exception:
         pass
     raise
+
