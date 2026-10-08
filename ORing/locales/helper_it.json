@@ -1,0 +1,106 @@
+{
+  "helper": {
+    "title": "Prerequisiti — Guida introduttiva",
+    "app_subtitle": "Macro ORing · FreeCAD 1.0",
+    "page_of": "Pagina {cur} / {total}",
+    "prev": "← Precedente",
+    "next": "Successivo →",
+    "finish": "Fine ✓",
+    "close": "Chiudi",
+    "pages": [
+      {
+        "badge": "Passo 1 / 5",
+        "title": "Struttura del documento FreeCAD",
+        "subtitle": "Sono necessari almeno due componenti",
+        "type": "rows",
+        "items": [
+          "Un <b>componente (Body)</b> che porta la <b>gola</b> — albero o foro a seconda del caso.",
+          "Un componente per la <b>parte di accoppiamento</b> — foro o albero, cioè il caso complementare.",
+          "Ogni componente è <b>completamente modellato</b> alla sua quota nominale, senza gola.",
+          "Il documento è salvato e ricalcolato senza errori (<i>Model → Refresh</i>)."
+        ],
+        "tip": "La macro crea da sola la gola. Non tracciarla manualmente in anticipo."
+      },
+      {
+        "badge": "Passo 2 / 5",
+        "title": "Parametri con nome obbligatori",
+        "subtitle": "Un parametro di raggio o diametro in ciascun componente",
+        "type": "rows",
+        "items": [
+          "In ogni componente interessato deve esistere un <b>parametro con nome</b> che definisca il raggio o il diametro della superficie di tenuta.",
+          "Questo parametro deve essere <b>collegato alla geometria del componente</b> — la macro lo usa per calcolare lo schiacciamento e dimensionare la gola.",
+          "La macro chiederà di <b>selezionare questo parametro</b> da un elenco a discesa — si consigliano nomi brevi e descrittivi (es. <code>D_albero</code>, <code>R_foro</code>)."
+        ],
+        "tip": "Se il parametro rappresenta un raggio, aggiungere il prefisso <code>R_</code> o <code>r_</code> — la macro adatta di conseguenza il calcolo."
+      },
+      {
+        "badge": "Passo 3 / 5",
+        "title": "Sistema di coordinate locale (LCS)",
+        "subtitle": "Riferimento di posizionamento assiale della gola",
+        "type": "rows",
+        "items": [
+          "Inserire un <b>LCS (Local Coordinate System)</b> nel componente che porta la gola, nella posizione esatta del <b>piano medio della gola</b> desiderato.",
+          "L'<b>asse Z dell'LCS</b> deve essere allineato con l'asse di rivoluzione del componente — ossia l'asse di simmetria della gola.",
+          "L'LCS può essere vincolato a una faccia, a un piano di riferimento oppure posizionato tramite quota, purché segua il parametro assiale del componente.",
+          "Assegnare all'LCS un <b>nome significativo</b> — la macro elenca tutti gli oggetti LCS disponibili nel componente selezionato."
+        ]
+      },
+      {
+        "badge": "Passo 4 / 5",
+        "title": "Dati tecnici di servizio",
+        "subtitle": "Tenerli a portata di mano prima di aprire la finestra di dialogo",
+        "type": "table",
+        "headers": [
+          "Dato",
+          "Valori tipici",
+          "Importanza"
+        ],
+        "rows": [
+          [
+            "Tipo di assieme",
+            "Statico · Dinamico traslazione · Rotazione",
+            "Critico|critique"
+          ],
+          [
+            "Posizione della gola",
+            "Sull'albero · Nel foro",
+            "Critico|critique"
+          ],
+          [
+            "Pressione max (bar)",
+            "0 – 500 bar",
+            "Importante|important"
+          ],
+          [
+            "Temperature (°C)",
+            "intervallo di esercizio min / max",
+            "Importante|important"
+          ],
+          [
+            "Fluido a contatto",
+            "Olio, acqua, gas, carburante…",
+            "Utile|utile"
+          ],
+          [
+            "Materiale desiderato",
+            "NBR · FKM · EPDM · VMQ…",
+            "Utile|utile"
+          ]
+        ]
+      },
+      {
+        "badge": "Passo 5 / 5",
+        "title": "Elenco di controllo finale",
+        "subtitle": "Prima di fare clic su \"Avvia macro\"",
+        "type": "rows",
+        "items": [
+          "FreeCAD impostato sul <b>sistema di unità standard (mm, kg, s, °)</b> — menu <i>Modifica → Preferenze → Generale → Unità</i>.",
+          "Entrambi i componenti ricalcolati senza triangolo giallo di avviso né icona di errore nell'albero del modello.",
+          "L'LCS è posizionato esattamente nel <b>piano medio della gola</b>, con l'asse Z allineato all'asse di rivoluzione.",
+          "I dati di servizio (pressione, fluido, tipo di assieme) sono noti."
+        ],
+        "tip": "Tutto pronto? Chiudere questa guida e fare clic su <b>Avvia macro</b> nella finestra di dialogo principale."
+      }
+    ]
+  }
+}

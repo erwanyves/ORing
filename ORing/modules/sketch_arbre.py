@@ -44,6 +44,8 @@ Contraintes dimensionnelles nommees :
 
 import math
 
+from .i18n import tr
+
 try:
     import FreeCAD as App
     import Part
@@ -61,6 +63,7 @@ except ImportError:
             def Quantity(s): return s
 
 from .calcul import ResultatCalcul
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
 
 
 # =============================================================================
@@ -224,7 +227,7 @@ def generer_sketch_gorge_arbre(doc,
     L'objet Sketcher::SketchObject cree.
     """
     if not FREECAD_DISPONIBLE:
-        raise RuntimeError("FreeCAD non disponible")
+        raise RuntimeError(tr("FreeCAD not available"))
 
     # ── Parametres dimensionnels ──────────────────────────────────────────────
     #
@@ -256,7 +259,7 @@ def generer_sketch_gorge_arbre(doc,
         from .utils import lister_bodies
         bodies = lister_bodies(doc)
         if not bodies:
-            raise RuntimeError("Aucun PartDesign::Body dans le document")
+            raise RuntimeError(tr("No PartDesign::Body in the document"))
         body = bodies[0]
 
     # ── Creation du sketch ────────────────────────────────────────────────────
@@ -294,9 +297,9 @@ def generer_sketch_gorge_arbre(doc,
     else:
         support = _trouver_plan(doc, body, plan)
         if support is None:
-            raise RuntimeError(
-                f"Plan {plan}_Plane introuvable dans le document"
-            )
+            raise RuntimeError(tr(
+                "Plan {plan}_Plane not found in the document", plan=plan
+            ))
         sketch.AttachmentSupport = [(support, '')]
         sketch.MapMode = 'FlatFace'
         sketch.AttachmentOffset = App.Placement()

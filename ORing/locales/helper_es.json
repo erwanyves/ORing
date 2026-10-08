@@ -1,0 +1,106 @@
+{
+  "helper": {
+    "title": "Requisitos previos — Guía de inicio",
+    "app_subtitle": "Macro ORing · FreeCAD 1.0",
+    "page_of": "Página {cur} / {total}",
+    "prev": "← Anterior",
+    "next": "Siguiente →",
+    "finish": "Terminado ✓",
+    "close": "Cerrar",
+    "pages": [
+      {
+        "badge": "Paso 1 / 5",
+        "title": "Estructura del documento FreeCAD",
+        "subtitle": "Se requieren al menos dos cuerpos",
+        "type": "rows",
+        "items": [
+          "Un <b>cuerpo (Body)</b> que lleva la <b>ranura</b> — eje o alojamiento según el caso.",
+          "Un cuerpo para la <b>pieza complementaria</b> — alojamiento o eje, es decir, el caso inverso.",
+          "Cada cuerpo está <b>completamente modelado</b> con su cota nominal, sin ranura.",
+          "El documento está guardado y se recalcula sin errores (<i>Model → Refresh</i>)."
+        ],
+        "tip": "La macro crea la ranura por sí misma. No la esboce manualmente de antemano."
+      },
+      {
+        "badge": "Paso 2 / 5",
+        "title": "Parámetros con nombre obligatorios",
+        "subtitle": "Un parámetro de radio o diámetro en cada cuerpo",
+        "type": "rows",
+        "items": [
+          "En cada cuerpo correspondiente, debe existir un <b>parámetro con nombre</b> que defina el radio o el diámetro de la superficie de estanqueidad.",
+          "Este parámetro debe estar <b>vinculado a la geometría del cuerpo</b> — la macro lo utiliza para calcular el aplastamiento y dimensionar la ranura.",
+          "La macro le pedirá <b>seleccionar este parámetro</b> en una lista desplegable — se recomiendan nombres cortos y descriptivos (p. ej. <code>D_eje</code>, <code>R_alojamiento</code>)."
+        ],
+        "tip": "Si el parámetro representa un radio, añádale el prefijo <code>R_</code> o <code>r_</code> — la macro ajusta su cálculo en consecuencia."
+      },
+      {
+        "badge": "Paso 3 / 5",
+        "title": "Sistema de coordenadas local (LCS)",
+        "subtitle": "Referencia de posicionamiento axial de la ranura",
+        "type": "rows",
+        "items": [
+          "Inserte un <b>LCS (Local Coordinate System)</b> en el cuerpo que lleva la ranura, en la ubicación exacta del <b>plano medio de la ranura</b> deseado.",
+          "El <b>eje Z del LCS</b> debe estar alineado con el eje de revolución de la pieza, es decir, el eje de simetría de la ranura.",
+          "El LCS puede vincularse a una cara, a un plano de referencia o posicionarse mediante una cota, siempre que siga el parámetro axial de la pieza.",
+          "Asigne al LCS un <b>nombre significativo</b> — la macro enumera todos los objetos LCS disponibles en el cuerpo seleccionado."
+        ]
+      },
+      {
+        "badge": "Paso 4 / 5",
+        "title": "Datos técnicos de servicio",
+        "subtitle": "Téngalos a mano antes de abrir el cuadro de diálogo",
+        "type": "table",
+        "headers": [
+          "Dato",
+          "Valores habituales",
+          "Importancia"
+        ],
+        "rows": [
+          [
+            "Tipo de montaje",
+            "Estático · Dinámico traslación · Rotación",
+            "Crítico|critique"
+          ],
+          [
+            "Posición de la ranura",
+            "En el eje · En el alojamiento",
+            "Crítico|critique"
+          ],
+          [
+            "Presión máx. (bar)",
+            "0 – 500 bar",
+            "Importante|important"
+          ],
+          [
+            "Temperaturas (°C)",
+            "rango mín. / máx. de funcionamiento",
+            "Importante|important"
+          ],
+          [
+            "Fluido en contacto",
+            "Aceite, agua, gas, combustible…",
+            "Útil|utile"
+          ],
+          [
+            "Material deseado",
+            "NBR · FKM · EPDM · VMQ…",
+            "Útil|utile"
+          ]
+        ]
+      },
+      {
+        "badge": "Paso 5 / 5",
+        "title": "Lista de comprobación final",
+        "subtitle": "Antes de hacer clic en «Iniciar macro»",
+        "type": "rows",
+        "items": [
+          "FreeCAD configurado con el <b>sistema de unidades estándar (mm, kg, s, °)</b> — menú <i>Edición → Preferencias → General → Unidades</i>.",
+          "Ambos cuerpos recalculados sin triángulo amarillo de advertencia ni icono de error en el árbol del modelo.",
+          "El LCS está posicionado exactamente en el <b>plano medio de la ranura</b>, con el eje Z alineado con el eje de revolución.",
+          "Los datos de servicio (presión, fluido, tipo de montaje) son conocidos."
+        ],
+        "tip": "¿Todo listo? Cierre esta guía y haga clic en <b>Iniciar macro</b> en el cuadro de diálogo principal."
+      }
+    ]
+  }
+}

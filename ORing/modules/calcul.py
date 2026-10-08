@@ -50,6 +50,7 @@ from .i18n   import tr
 from .joints    import (choisir_serie, choisir_d1, get_serie,
                         get_plage_squeeze, get_plage_fill,
                         get_limites_extrusion)
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
 
 # ===========================================================================
 # Chargement des paramètres de calcul depuis parametres_calcul.json
@@ -63,7 +64,7 @@ def _params() -> dict:
     if _PARAMS_CACHE is None:
         chemin = os.path.abspath(_PARAMS_PATH)
         if not os.path.isfile(chemin):
-            raise FileNotFoundError(f"parametres_calcul.json introuvable : {chemin}")
+            raise FileNotFoundError(tr("parametres_calcul.json not found: {path}", path=chemin))
         with open(chemin, 'r', encoding='utf-8') as f:
             _PARAMS_CACHE = json.load(f)
     return _PARAMS_CACHE
@@ -558,7 +559,7 @@ def ecarts_arbre(diametre_mm: float, lettre: str, grade: int) -> dict:
     """
     lettre = lettre.lower()
     if lettre not in ('f', 'g'):
-        raise ValueError(f"Lettre '{lettre}' non supportée. Valeurs : f, g")
+        raise ValueError(tr("Letter '{letter}' not supported. Values: f, g", letter=lettre))
     if grade not in range(6, 10):
         raise ValueError(tr("Grade {grade} out of range (6–9)", grade=grade))
 
@@ -702,12 +703,12 @@ def calculer_variation_serrage(
     # ── Excentricité maximale (CAS 2) ─────────────────────────────────
     if excentricite_mm is not None:
         e_max = excentricite_mm
-        source_e = f"imposée ({e_max:.3f} mm)"
+        source_e = tr("imposed ({e_max:.3f} mm)", e_max=e_max)
     else:
         # Excentricité calculée depuis la tolérance de position
         # e_max = IT_position / 2  (la position peut dériver de ±IT/2 sur le rayon)
         e_max = IT_pos_mm / 2.0
-        source_e = f"calculée depuis IT{it_grade_position} ({IT_pos:.0f} µm → e={e_max:.3f} mm)"
+        source_e = tr("computed from IT{grade} ({it_pos:.0f} µm → e={e_max:.3f} mm)", grade=it_grade_position, it_pos=IT_pos, e_max=e_max)
 
     # Sur le côté serré  : l'espace est réduit de e_max
     # Sur le côté ouvert : l'espace est augmenté de e_max
@@ -755,7 +756,7 @@ def calculer_variation_serrage(
         'e_max_mm'       : round(e_max, 4),
 
         'cas1': {
-            'label'       : 'Axes coaxiaux',
+            'label'       : tr('Coaxial axes'),
             'h_min'       : round(h_min_cas1,  4),
             'h_max'       : round(h_max_cas1,  4),
             'squeeze_min' : round(sq_min_cas1, 2),
@@ -764,7 +765,7 @@ def calculer_variation_serrage(
         },
 
         'cas2': {
-            'label'             : 'Excentricité maximale',
+            'label'             : tr('Maximum eccentricity'),
             'e_max_mm'          : round(e_max,        4),
             'h_min_local'       : round(h_min_local,  4),
             'h_max_local'       : round(h_max_local,  4),

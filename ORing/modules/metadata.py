@@ -59,6 +59,9 @@ import re
 import uuid as _uuid_mod
 import datetime
 
+from .i18n import tr
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
+
 try:
     import FreeCAD as App
     FREECAD_DISPONIBLE = True
@@ -107,41 +110,12 @@ def _sanitize(label: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '_', label)
 
 
-def trouver_objet(doc, name: str = '', label: str = '',
-                  type_id: str = '') -> object:
-    """
-    Trouve un objet FreeCAD en cherchant d'abord par Name (stable),
-    puis par Label si Name absent ou introuvable (rétrocompatibilité).
-
-    Paramètres
-    ----------
-    doc     : document FreeCAD
-    name    : Name interne de l'objet (inchangeable, prioritaire)
-    label   : Label visible dans l'arbre (modifiable par l'utilisateur)
-    type_id : si non vide, filtre sur TypeId (ex. 'PartDesign::Body')
-
-    Retourne (objet, found_by_name) ou (None, False).
-    Utiliser trouver_objet_simple() pour l'API sans tuple.
-    """
-    if doc is None:
-        return None, False
-
-    # 1. Recherche par Name (fiable même après renommage du Label)
-    if name:
-        obj = doc.getObject(name)
-        if obj is not None:
-            if not type_id or getattr(obj, 'TypeId', '') == type_id:
-                return obj, True
-
-    # 2. Fallback : recherche par Label
-    if label:
-        for obj in doc.Objects:
-            if type_id and getattr(obj, 'TypeId', '') != type_id:
-                continue
-            if getattr(obj, 'Label', '') == label:
-                return obj, False   # trouvé par Label → Name à mettre à jour
-
-    return None, False
+# NOTE (06/09/2026, action 7 du plan) : une PREMIERE definition de
+# trouver_objet() figurait ici, renvoyant un tuple (objet, found_by_name).
+# Elle etait morte -- masquee par la definition ci-dessous, chargee ensuite --
+# et sa docstring decrivait un contrat que plus aucun appelant n'utilisait.
+# Retiree : la version tuple reste disponible sous son vrai nom,
+# _trouver_objet_avec_flag().
 
 
 def trouver_objet(doc, name: str = '', label: str = '',
@@ -151,11 +125,15 @@ def trouver_objet(doc, name: str = '', label: str = '',
     return obj
 
 
-def _trouver_objet_avec_flag(doc, name: str = '', label: str = '',
-                              type_id: str = ''):
-    """Version interne retournant (objet, found_by_name)."""
-    if doc is None:
-        return None, False
+def _chercher_objet_dans(doc, name: str, label: str, type_id: str):
+    """
+    Recherche dans UN document : par Name d'abord, puis par Label.
+
+    NOTE (06/09/2026) : plus appelée par _trouver_objet_avec_flag(), qui
+    apparie désormais l'ensemble du périmètre via apparier_objet(). Conservée
+    telle quelle pour un usage strictement mono-document, où le Name est
+    unique et cette règle sans ambiguïté.
+    """
     if name:
         obj = doc.getObject(name)
         if obj is not None:
@@ -168,6 +146,109 @@ def _trouver_objet_avec_flag(doc, name: str = '', label: str = '',
             if getattr(obj, 'Label', '') == label:
                 return obj, False
     return None, False
+
+
+def apparier_objet(candidats, name: str = '', label: str = '',
+                   type_id: str = '', candidats_nom_seul=None):
+    """
+    Choisit, dans une liste de candidats pouvant provenir de PLUSIEURS
+    documents, celui qui correspond au couple (Name, Label) mémorisé.
+
+    POURQUOI (06/09/2026, faux positif signalé par l'utilisateur)
+    ------------------------------------------------------------
+    `Name` n'est unique QUE dans son document. « Body » est le nom par défaut
+    de tout PartDesign::Body : dans un assemblage multi-fichiers, Arbre.FCStd
+    et Alesage.FCStd contiennent chacun un objet nommé « Body ». Depuis
+    l'Étape A2, les recherches traversent les documents du périmètre ; un
+    appariement par Name seul y désigne le premier « Body » rencontré — pas
+    forcément le bon. Symptôme : fausse « dérive du diamètre de référence »
+    (Ø réf 20.000 → valeur actuelle 19.800), la valeur lue provenant du
+    composant voisin.
+
+    Les Labels, eux, sont distincts (« Arbre », « Alesage ») : ils sont le
+    discriminant fiable entre documents.
+
+    ORDRE DE PRÉFÉRENCE
+      1. Name ET Label concordants — identification certaine ;
+      2. Label seul — le Name a changé (objet recréé) ;
+      3. Name seul, cherché dans ``candidats_nom_seul`` (par défaut :
+         ``candidats``) et accepté seulement s'il y est UNIQUE — cas du
+         renommage, comportement historique mono-document. Restreindre cette
+         passe au document demandé est ce qui empêche de désigner l'objet
+         homonyme d'un autre document.
+
+    Retourne ``(objet, trouve_par_nom)``, ou ``(None, False)``.
+    """
+    def _filtrer(liste):
+        return [o for o in (liste or [])
+                if o is not None
+                and (not type_id or getattr(o, 'TypeId', '') == type_id)]
+
+    retenus = _filtrer(candidats)
+
+    # 1. Name ET Label
+    if name and label:
+        for o in retenus:
+            if (getattr(o, 'Name', '') == name
+                    and getattr(o, 'Label', '') == label):
+                return o, True
+
+    # 2. Label seul (l'ordre de `candidats` fait foi : document demandé d'abord)
+    if label:
+        par_label = [o for o in retenus if getattr(o, 'Label', '') == label]
+        if par_label:
+            if name:
+                for o in par_label:
+                    if getattr(o, 'Name', '') == name:
+                        return o, True
+            return par_label[0], False
+
+    # 3. Name seul, dans le périmètre restreint et seulement s'il y est unique
+    if name:
+        base = retenus if candidats_nom_seul is None \
+            else _filtrer(candidats_nom_seul)
+        par_nom = [o for o in base if getattr(o, 'Name', '') == name]
+        if len(par_nom) == 1:
+            return par_nom[0], True
+
+    return None, False
+
+
+def _trouver_objet_avec_flag(doc, name: str = '', label: str = '',
+                              type_id: str = ''):
+    """
+    Version interne retournant (objet, found_by_name).
+
+    Balaie `doc` PUIS les documents sources atteints par ses App::Link
+    (Étape A2 du support des liens, 06/09/2026 : le LCS et le sketch de gorge
+    d'un composant lié vivent dans son document source), et apparie le tout
+    par apparier_objet() — (Name, Label) d'abord, Label ensuite, Name seul en
+    dernier et dans `doc` uniquement.
+
+    CORRECTIF (06/09/2026) : le repli précédent interrogeait les documents un
+    par un, chacun avec la règle « Name d'abord ». Comme « Body » est le nom
+    par défaut de tout PartDesign::Body, il pouvait retourner le Body d'un
+    AUTRE composant — d'où la fausse dérive de diamètre signalée par
+    l'utilisateur. Le comportement mono-document, lui, est inchangé : le
+    périmètre s'y réduit à [doc].
+    """
+    if doc is None:
+        return None, False
+
+    candidats = list(getattr(doc, 'Objects', []) or [])
+    propres = list(candidats)      # passe 3 : document demandé uniquement
+
+    try:
+        from .utils import documents_du_perimetre
+        for autre in documents_du_perimetre(doc):
+            if autre is doc:
+                continue
+            candidats.extend(getattr(autre, 'Objects', []) or [])
+    except Exception:
+        pass
+
+    return apparier_objet(candidats, name=name, label=label,
+                          type_id=type_id, candidats_nom_seul=propres)
 
 
 def auto_heal_names(doc, part, meta: dict) -> dict:
@@ -340,7 +421,7 @@ def creer_part_oring(doc, nom: str, body_oring, meta: dict):
     Retourne le Part créé.
     """
     if not FREECAD_DISPONIBLE:
-        raise RuntimeError("FreeCAD non disponible")
+        raise RuntimeError(tr("FreeCAD not available"))
 
     part = doc.addObject('App::Part', nom)
     part.Label = nom
@@ -377,17 +458,91 @@ def creer_part_oring(doc, nom: str, body_oring, meta: dict):
 # Conteneur Part principal (body_gorge + joints ORing)
 # =============================================================================
 
-CONTENEUR_SUFFIX_ARBRE   = ' équipé'
-CONTENEUR_SUFFIX_ALESAGE = ' équipé'
+# NOTE (04/09/2026) : le suffixe est désormais traduit via tr('equipped')
+# au lieu d'être codé en dur en français — voir _nom_conteneur() ci-dessous.
+# Ce nom est un simple libellé d'AFFICHAGE (Label du App::Part conteneur),
+# jamais relu ni comparé par le programme : trouver_ou_creer_conteneur()
+# retrouve un conteneur déjà existant via son TypeId dans InList (voir
+# _trouver_part_parent()), jamais par correspondance de nom. La langue
+# active au moment de la création n'a donc AUCUNE influence sur le
+# déroulement du programme, quelle que soit la langue de l'utilisateur qui
+# rouvre le document ensuite (ex. un ensemble créé en italien affichera
+# "... equipaggiato" pour un utilisateur français, sans que cela ne perturbe
+# rien). Les conteneurs déjà créés avant ce correctif gardent leur nom
+# existant tel quel (jamais renommé automatiquement).
+
+
+def body_oring_de(part, meta: dict = None, doc_repli=None):
+    """Retrouve le corps ORing (le tore) d'un joint, **dans son document**.
+
+    Le corps ORing d'un composant lié vit dans le document SOURCE de ce
+    composant, pas dans l'assemblage : `doc_actif.getObject(nom)` y rend
+    None. La racine correcte est `part.Document` — le Part du joint et son
+    corps vivent dans le même document, par construction (le corps est dans
+    le `Group` du Part).
+
+    Deux passes, dans cet ordre :
+
+    1. **par le `Name`** stocké dans les métadonnées, cherché dans le
+       document du Part ;
+    2. **à défaut, par balayage de `part.Group`** — FreeCAD renomme les
+       objets au recompute, le `Name` stocké peut être périmé.
+
+    La seconde passe existait déjà, recopiée à l'identique en six endroits ;
+    c'est elle qui masquait le défaut de la première partout sauf au
+    recolorage du lancement, qui ne l'avait pas.
+
+    Et ce n'est pas seulement une recherche qui échouait : `Name` n'identifie
+    que **dans** un document (`mecanismes_partages.md` §6.1 règle 6). Cherché
+    dans l'assemblage, un `Name` de composant peut désigner un tout autre
+    objet. Enraciner sur `part.Document` ferme les deux cas d'un coup.
+
+    `doc_repli` : document où chercher quand `part` est None ou sans
+    document — conserve le comportement des appelants qui tentaient la
+    résolution même sans Part.
+
+    Retourne le corps, ou None. **Ne lève jamais.**
+
+    Action A4-a de `plan_action_2026-09-06.md` (11/09/2026).
+    """
+    doc = getattr(part, 'Document', None) or doc_repli
+
+    if meta is None and part is not None:
+        try:
+            meta = lire_metadonnees(part)
+        except Exception:
+            meta = {}
+
+    nom = (meta or {}).get('body_oring_name', '')
+    if nom and doc is not None:
+        try:
+            objet = doc.getObject(nom)
+        except Exception:
+            objet = None
+        if objet is not None:
+            return objet
+
+    for enfant in (getattr(part, 'Group', None) or []):
+        try:
+            if (getattr(enfant, 'TypeId', '') == 'PartDesign::Body'
+                    and getattr(enfant, 'Label', '').startswith('ORing')):
+                print("[ORing] Body ORing trouvé dans Part.Group : '%s'"
+                      % getattr(enfant, 'Name', '?'))
+                return enfant
+        except Exception:
+            continue
+
+    return None
 
 
 def _nom_conteneur(body_gorge, position: str) -> str:
     """
-    Construit le Label du conteneur à partir du Label du body portant la gorge.
-    Ex: 'Axe' → 'Axe équipé'
+    Construit le Label du conteneur à partir du Label du body portant la gorge,
+    dans la langue active au moment de la création.
+    Ex (FR): 'Axe' → 'Axe équipé'   Ex (EN): 'Axe' → 'Axe equipped'
     """
     base = getattr(body_gorge, 'Label', 'Corps') or 'Corps'
-    return base + CONTENEUR_SUFFIX_ARBRE   # même suffixe arbre/alésage
+    return f"{base} {tr('equipped')}"   # même suffixe arbre/alésage
 
 
 def _trouver_part_parent(obj) -> object:
@@ -420,6 +575,14 @@ def trouver_ou_creer_conteneur(doc, body_gorge, position: str):
     """
     if not FREECAD_DISPONIBLE or doc is None or body_gorge is None:
         return None
+
+    # Le conteneur doit vivre dans le document du body PORTEUR, qui n'est
+    # pas le document actif quand le composant est inséré comme App::Link
+    # dans un assemblage multi-fichiers (06/09/2026, spec
+    # claude/spec_support_liens_assemblage.md §7). Un App::Part ne peut de
+    # toute façon pas contenir un objet d'un autre document.
+    # En mono-document, body_gorge.Document EST doc : rien ne change.
+    doc = getattr(body_gorge, 'Document', None) or doc
 
     # 1. Chercher un App::Part parent existant
     conteneur = _trouver_part_parent(body_gorge)
@@ -476,17 +639,58 @@ def rattacher_joint_au_conteneur(doc, part_oring, body_gorge, position: str):
               f"'{conteneur.Label}' — rien à faire")
 
     doc.recompute()
+
+    # ── Re-routage des liens (Étape B, 06/09/2026) ──────────────────────
+    # Si le corps portant la gorge est référencé par des App::Link (composant
+    # inséré dans un assemblage multi-fichiers), ces liens doivent désormais
+    # pointer sur le conteneur « ... équipé » — sinon le joint reste invisible
+    # dans l'assemblage. Idempotent : un lien déjà routé sur le conteneur est
+    # ignoré. Aucun effet en mono-document (aucun lien vers le body).
+    # Voir claude/spec_support_liens_assemblage.md §7.
+    try:
+        _rerouter_liens_vers_conteneur(body_gorge, conteneur, doc)
+    except Exception as _e_rr:
+        print(f"[ORing liens] re-routage AVERT : {_e_rr}")
+
     return conteneur
+
+
+def _rerouter_liens_vers_conteneur(body_gorge, conteneur, doc_source):
+    """
+    Fait pointer sur `conteneur` tous les liens qui visaient encore
+    `body_gorge`, puis remet les liaisons d'assemblage en cohérence.
+
+    Retourne la liste [(lien, etat_origine)] permettant une annulation par
+    utils.restaurer_lien().
+    """
+    from .utils import liens_vers, rerouter_lien, rafraichir_assemblages
+
+    liens = liens_vers(body_gorge)
+    if not liens:
+        return []
+
+    reroutes = []
+    docs_a_rafraichir = [doc_source]
+    for lien in liens:
+        etat = rerouter_lien(lien, conteneur)
+        if etat is not None:
+            reroutes.append((lien, etat))
+            try:
+                if lien.Document not in docs_a_rafraichir:
+                    docs_a_rafraichir.append(lien.Document)
+            except Exception:
+                pass
+
+    if reroutes:
+        rafraichir_assemblages(docs_a_rafraichir)
+    return reroutes
 
 # =============================================================================
 # Détection des Parts ORing existants
 # =============================================================================
 
-def lister_parts_oring(doc) -> list:
-    """
-    Retourne la liste des App::Part dont le nom commence par ORING_PART_PREFIX
-    et qui possèdent la propriété oring_version.
-    """
+def _parts_oring_du_document(doc) -> list:
+    """Joints ORing d'UN document, sans parcours des liens."""
     if doc is None:
         return []
     return [
@@ -495,6 +699,41 @@ def lister_parts_oring(doc) -> list:
         and obj.Name.startswith(ORING_PART_PREFIX)
         and hasattr(obj, 'oring_version')
     ]
+
+
+def lister_parts_oring(doc) -> list:
+    """
+    Retourne la liste des App::Part dont le nom commence par ORING_PART_PREFIX
+    et qui possèdent la propriété oring_version — dans `doc` ET dans les
+    documents sources atteints par ses App::Link.
+
+    Correctif du 06/09/2026 (Étape A2 du support des liens) : depuis l'Étape A,
+    le joint d'un composant lié est créé dans le document SOURCE du composant.
+    Un balayage limité à `doc.Objects` laissait donc l'onglet « joints »
+    désespérément vide dans un assemblage multi-fichiers — symptôme rapporté
+    par l'utilisateur. Voir claude/spec_support_liens_assemblage.md §6.
+
+    En mono-document, le périmètre se réduit à [doc] : résultat identique à
+    l'implémentation précédente, à l'objet près.
+    """
+    if doc is None:
+        return []
+    try:
+        from .utils import documents_du_perimetre
+        docs = documents_du_perimetre(doc)
+    except Exception:
+        docs = [doc]
+
+    resultat = []
+    vus = set()
+    for d in docs:
+        for part in _parts_oring_du_document(d):
+            cle = (d.Name, part.Name)
+            if cle in vus:
+                continue
+            vus.add(cle)
+            resultat.append(part)
+    return resultat
 
 
 def trouver_part_par_uuid(doc, uuid_str: str):
@@ -530,11 +769,32 @@ def verifier_derives(doc) -> list:
         meta = lire_metadonnees(part)
         ref  = meta.get('d_comp_ref_mm', 0.0)
 
-        # Retrouver le body complémentaire — Name d'abord, Label en fallback
-        body_comp = trouver_objet(doc,
-            name    = meta.get('body_comp_name', ''),
-            label   = meta.get('body_comp_label', ''),
-            type_id = 'PartDesign::Body')
+        # Le joint d'un composant lié vit dans le document SOURCE de ce
+        # composant (Étape A). On cherche donc d'abord dans le document DU
+        # JOINT — le body portant la gorge y est, sans ambiguïté possible.
+        #
+        # PUIS, en repli, dans le périmètre de l'ASSEMBLAGE. C'est
+        # indispensable pour le body COMPLÉMENTAIRE, qui vit dans un
+        # troisième fichier : documents_du_perimetre() suit les App::Link
+        # SORTANTS, or un document composant n'en a aucun — son périmètre se
+        # réduit à lui-même. Seul l'assemblage, qui pointe les deux
+        # composants, permet de les atteindre tous les deux.
+        # (Correctif du 06/09/2026 : l'enracinement sur le seul document du
+        # joint faisait retomber le côté complémentaire à courant=None —
+        # dérive de ce côté non détectée, en silence.)
+        doc_part = getattr(part, 'Document', None) or doc
+
+        def _resoudre_body(name, label):
+            obj = trouver_objet(doc_part, name=name, label=label,
+                                type_id='PartDesign::Body')
+            if obj is None and doc_part is not doc:
+                obj = trouver_objet(doc, name=name, label=label,
+                                    type_id='PartDesign::Body')
+            return obj
+
+        # Retrouver le body complémentaire — appariement (Name, Label)
+        body_comp = _resoudre_body(meta.get('body_comp_name', ''),
+                                   meta.get('body_comp_label', ''))
 
         # ── Côté complémentaire ─────────────────────────────────────────────
         courant_comp = None
@@ -551,10 +811,8 @@ def verifier_derives(doc) -> list:
         ref_gorge  = float(meta.get('d_gorge_ref_mm', 0.0))
         courant_gorge = None
         if ref_gorge > 0:
-            body_gorge = trouver_objet(doc,
-                name    = meta.get('body_gorge_name', ''),
-                label   = meta.get('body_gorge_label', ''),
-                type_id = 'PartDesign::Body')
+            body_gorge = _resoudre_body(meta.get('body_gorge_name', ''),
+                                        meta.get('body_gorge_label', ''))
             if body_gorge:
                 params_g = lister_parametres_body(body_gorge)
                 nom_pg   = meta.get('param_gorge', '')
@@ -580,14 +838,20 @@ def verifier_derives(doc) -> list:
               f"→ delta={delta} derive={derive}")
 
         resultats.append({
-            'part':         part,
-            'meta':         meta,
-            'ref':          ref,
-            'courant':      courant_comp,
-            'derive':       derive,
-            'delta':        delta,
-            'delta_comp':   delta_comp,
-            'delta_gorge':  delta_gorge,
+            'part':          part,
+            'meta':          meta,
+            'ref':           ref,
+            'courant':       courant_comp,
+            'derive':        derive,
+            'delta':         delta,
+            'delta_comp':    delta_comp,
+            'delta_gorge':   delta_gorge,
+            # BUGFIX (02/09/2026, signale par l'utilisateur) : necessaires a
+            # dialogue._recalculer_apres_derive() pour determiner QUEL cote a
+            # reellement derive (comp et/ou gorge) et afficher/agir sur le bon
+            # cote au lieu de toujours supposer que seul le comp a change.
+            'courant_gorge': courant_gorge,
+            'ref_gorge':     ref_gorge,
         })
 
     return resultats

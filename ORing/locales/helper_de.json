@@ -1,0 +1,106 @@
+{
+  "helper": {
+    "title": "Voraussetzungen — Einstiegsanleitung",
+    "app_subtitle": "ORing-Makro · FreeCAD 1.0",
+    "page_of": "Seite {cur} / {total}",
+    "prev": "← Zurück",
+    "next": "Weiter →",
+    "finish": "Fertig ✓",
+    "close": "Schließen",
+    "pages": [
+      {
+        "badge": "Schritt 1 / 5",
+        "title": "Struktur des FreeCAD-Dokuments",
+        "subtitle": "Mindestens zwei Bauteile sind erforderlich",
+        "type": "rows",
+        "items": [
+          "Ein <b>Bauteil (Body)</b> mit der <b>Nut</b> — Welle oder Bohrung, je nach Fall.",
+          "Ein Bauteil für das <b>Gegenstück</b> — Bohrung oder Welle, also der jeweils andere Fall.",
+          "Jedes Bauteil ist <b>vollständig modelliert</b> in seiner Nennmaß-Größe, ohne Nut.",
+          "Das Dokument ist gespeichert und lässt sich ohne Fehler neu berechnen (<i>Model → Refresh</i>)."
+        ],
+        "tip": "Das Makro erzeugt die Nut selbst. Skizzieren Sie sie nicht vorab manuell."
+      },
+      {
+        "badge": "Schritt 2 / 5",
+        "title": "Obligatorische benannte Parameter",
+        "subtitle": "Ein Radius- oder Durchmesserparameter in jedem Bauteil",
+        "type": "rows",
+        "items": [
+          "In jedem betroffenen Bauteil muss ein <b>benannter Parameter</b> vorhanden sein, der den Radius oder Durchmesser der Dichtfläche definiert.",
+          "Dieser Parameter muss <b>mit der Bauteilgeometrie verknüpft</b> sein — das Makro nutzt ihn zur Berechnung der Verpressung und zur Auslegung der Nut.",
+          "Das Makro fordert Sie auf, <b>diesen Parameter</b> aus einer Dropdown-Liste <b>auszuwählen</b> — kurze, aussagekräftige Namen werden empfohlen (z. B. <code>D_Welle</code>, <code>R_Bohrung</code>)."
+        ],
+        "tip": "Stellt der Parameter einen Radius dar, versehen Sie ihn mit dem Präfix <code>R_</code> oder <code>r_</code> — das Makro passt seine Berechnung entsprechend an."
+      },
+      {
+        "badge": "Schritt 3 / 5",
+        "title": "Lokales Koordinatensystem (LCS)",
+        "subtitle": "Referenz für die axiale Positionierung der Nut",
+        "type": "rows",
+        "items": [
+          "Fügen Sie im nuttragenden Bauteil ein <b>LCS (Local Coordinate System)</b> genau an der Stelle der gewünschten <b>Nutmittelebene</b> ein.",
+          "Die <b>Z-Achse des LCS</b> muss mit der Rotationsachse des Bauteils ausgerichtet sein — also der Symmetrieachse der Nut.",
+          "Das LCS kann an eine Fläche, eine Referenzebene gebunden oder per Maß positioniert werden — solange es dem axialen Parameter des Bauteils folgt.",
+          "Geben Sie dem LCS einen <b>aussagekräftigen Namen</b> — das Makro listet alle im gewählten Bauteil verfügbaren LCS-Objekte auf."
+        ]
+      },
+      {
+        "badge": "Schritt 4 / 5",
+        "title": "Technische Betriebsdaten",
+        "subtitle": "Vor dem Öffnen des Dialogs bereithalten",
+        "type": "table",
+        "headers": [
+          "Daten",
+          "Typische Werte",
+          "Wichtigkeit"
+        ],
+        "rows": [
+          [
+            "Baugruppenart",
+            "Statisch · Dynamisch translatorisch · Rotatorisch",
+            "Kritisch|critique"
+          ],
+          [
+            "Nutposition",
+            "Auf Welle · In Bohrung",
+            "Kritisch|critique"
+          ],
+          [
+            "Max. Druck (bar)",
+            "0 – 500 bar",
+            "Wichtig|important"
+          ],
+          [
+            "Temperaturen (°C)",
+            "min. / max. Betriebsbereich",
+            "Wichtig|important"
+          ],
+          [
+            "Kontaktmedium",
+            "Öl, Wasser, Gas, Kraftstoff…",
+            "Nützlich|utile"
+          ],
+          [
+            "Gewünschter Werkstoff",
+            "NBR · FKM · EPDM · VMQ…",
+            "Nützlich|utile"
+          ]
+        ]
+      },
+      {
+        "badge": "Schritt 5 / 5",
+        "title": "Abschließende Prüfliste",
+        "subtitle": "Vor dem Klick auf „Makro starten“",
+        "type": "rows",
+        "items": [
+          "FreeCAD eingestellt auf <b>Standard-Einheitensystem (mm, kg, s, °)</b> — Menü <i>Bearbeiten → Einstellungen → Allgemein → Einheiten</i>.",
+          "Beide Bauteile neu berechnet, ohne gelbes Warndreieck oder Fehlersymbol im Modellbaum.",
+          "Das LCS ist genau an der <b>Nutmittelebene</b> positioniert, Z-Achse an der Rotationsachse ausgerichtet.",
+          "Die Betriebsdaten (Druck, Medium, Baugruppenart) sind bekannt."
+        ],
+        "tip": "Alles bereit? Schließen Sie diese Anleitung und klicken Sie im Hauptdialog auf <b>Makro starten</b>."
+      }
+    ]
+  }
+}

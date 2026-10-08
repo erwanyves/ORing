@@ -39,6 +39,8 @@ Contraintes (9) :
 import math
 import re as _re
 
+from .i18n import tr
+
 try:
     import FreeCAD as App
     import Part
@@ -73,6 +75,7 @@ except ImportError:
     Sketcher = _Sketcher
 
 from .calcul import ResultatCalcul
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
 
 
 # =============================================================================
@@ -116,7 +119,9 @@ def _appliquer_couleur_test(body) -> None:
         if feat not in cibles:
             cibles.append(feat)
 
-    gui_doc = Gui.ActiveDocument
+    # Document GUI du body, et non le document actif : le corps ORing d'un
+    # composant lié vit dans le document source (06/09/2026).
+    gui_doc = _gui_doc_de(body)
     for obj in cibles:
         try:
             nom = getattr(obj, 'Name', '')
@@ -201,7 +206,7 @@ def appliquer_couleur_materiau(body, materiau: str) -> None:
                     'Sketcher::SketchObject',):
                 cibles.append(feat)
 
-        gui_doc = Gui.ActiveDocument
+        gui_doc = _gui_doc_de(body)
         if gui_doc is None:
             return
 
@@ -346,6 +351,35 @@ def calculer_dims_oblongues(d2: float, r_gorge: float,
     }
 
 
+def _gui_doc_de(obj):
+    """
+    Retourne le document GUI de `obj` -- et non Gui.ActiveDocument, qui
+    designe l'assemblage quand le corps vit dans un document source lie
+    (06/09/2026). Repli sur le document actif si la resolution echoue.
+
+    IMPORTANT : ce module n'importe FreeCADGui nulle part au niveau module --
+    chaque fonction fait son propre import local. L'import ci-dessous n'est
+    donc pas redondant : sans lui, le nom `Gui` est introuvable, les deux
+    tentatives levent une NameError silencieusement attrapee, la fonction
+    retourne None, et les appelants (`appliquer_couleur_materiau`,
+    `_appliquer_couleur_test`) sortent aussitot sans appliquer la moindre
+    couleur. C'est exactement la regression du 06/09/2026, signalee par
+    l'utilisateur : couleur des joints perdue en assemblage lie ET en
+    mono-document.
+    """
+    try:
+        import FreeCADGui as Gui
+    except Exception:
+        return None
+    try:
+        return Gui.getDocument(obj.Document.Name)
+    except Exception:
+        try:
+            return Gui.ActiveDocument
+        except Exception:
+            return None
+
+
 def generer_oring_3d(doc,
                      resultat: ResultatCalcul,
                      lcs,
@@ -362,9 +396,9 @@ def generer_oring_3d(doc,
     Retourne le body créé.
     """
     if not FREECAD_DISPONIBLE:
-        raise RuntimeError("FreeCAD non disponible")
+        raise RuntimeError(tr("FreeCAD not available"))
     if lcs is None:
-        raise ValueError("LCS requis pour positionner le joint 3D")
+        raise ValueError(tr("LCS required to position the 3D seal"))
 
     # ── Rayons ──────────────────────────────────────────────────────────────
     # Utiliser rayon_arbre / rayon_gorge déjà calculés par calcul.py :
@@ -399,16 +433,32 @@ def generer_oring_3d(doc,
     # Pour contourner ça, on désactive temporairement l'ActivePart, on crée
     # le body à la racine du document, puis on l'ajoute explicitement au
     # Part ORing cible. C'est la seule méthode fiable pour App::Part.
-    _active_part_saved = None
+    # La capture du "conteneur actif" par FreeCAD ne concerne QUE le document
+    # actif : si `doc` est un document source atteint par un lien (support des
+    # liens, 06/09/2026), addObject n'y est soumis a aucun ActivePart et toute
+    # cette gymnastique est inutile. Pire, la restauration echouait bruyamment
+    # ("Cannot set active object Arbre#Body ... Not found in current
+    # selection") parce que l'objet actif memorise appartenait a un AUTRE
+    # document que celui de la vue. On la saute donc dans ce cas.
+    _doc_est_actif = True
     try:
         import FreeCADGui as Gui
-        _active_part_saved = Gui.ActiveDocument.ActiveView.getActiveObject('pdbody')             if hasattr(Gui, 'ActiveDocument') and Gui.ActiveDocument else None
+        _gui_actif = Gui.ActiveDocument if hasattr(Gui, 'ActiveDocument') else None
+        _doc_est_actif = bool(_gui_actif) and (_gui_actif.Document is doc)
     except Exception:
-        pass
+        _doc_est_actif = True
+
+    _active_part_saved = None
+    if _doc_est_actif:
+        try:
+            import FreeCADGui as Gui
+            _active_part_saved = Gui.ActiveDocument.ActiveView.getActiveObject('pdbody')             if hasattr(Gui, 'ActiveDocument') and Gui.ActiveDocument else None
+        except Exception:
+            pass
 
     try:
         # Suspendre le conteneur actif le temps de la création
-        if FREECAD_DISPONIBLE:
+        if FREECAD_DISPONIBLE and _doc_est_actif:
             try:
                 import FreeCADGui as Gui
                 if hasattr(Gui, 'ActiveDocument') and Gui.ActiveDocument:
@@ -420,7 +470,7 @@ def generer_oring_3d(doc,
         # Restaurer le conteneur actif
         try:
             import FreeCADGui as Gui
-            if (_active_part_saved is not None
+            if (_doc_est_actif and _active_part_saved is not None
                     and hasattr(Gui, 'ActiveDocument') and Gui.ActiveDocument):
                 Gui.ActiveDocument.ActiveView.setActiveObject(
                     'pdbody', _active_part_saved)

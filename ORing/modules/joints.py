@@ -15,6 +15,9 @@ import json
 import os
 import math
 
+from .i18n import tr
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
+
 _JSON_PATH    = os.path.join(os.path.dirname(__file__), '..', 'data', 'joints_standards.json')
 _PARAMS_PATH  = os.path.join(os.path.dirname(__file__), '..', 'data', 'parametres_calcul.json')
 
@@ -60,7 +63,7 @@ class ErreurJoints(Exception):
 def _charger_table() -> dict:
     chemin = os.path.abspath(_JSON_PATH)
     if not os.path.isfile(chemin):
-        raise ErreurJoints(f"Fichier joints introuvable : {chemin}")
+        raise ErreurJoints(tr("Seals file not found: {path}", path=chemin))
     with open(chemin, 'r', encoding='utf-8') as f:
         return json.load(f)
 
@@ -88,9 +91,10 @@ def get_standard(standard: str) -> dict:
     s = standard.upper()
     t = _table()['standards']
     if s not in t:
-        raise ErreurJoints(
-            f"Standard '{standard}' inconnu. Disponibles : {list(t.keys())}"
-        )
+        raise ErreurJoints(tr(
+            "Standard '{std}' unknown. Available: {available}",
+            std=standard, available=list(t.keys())
+        ))
     return t[s]
 
 
@@ -103,10 +107,11 @@ def get_serie(standard: str, serie: str) -> dict:
     """Retourne le bloc d'une série dans un standard."""
     s = get_standard(standard)
     if serie not in s['series']:
-        raise ErreurJoints(
-            f"Série '{serie}' inconnue dans {standard}. "
-            f"Disponibles : {list(s['series'].keys())}"
-        )
+        raise ErreurJoints(tr(
+            "Series '{serie}' unknown in {std}. "
+            "Available: {available}",
+            serie=serie, std=standard, available=list(s['series'].keys())
+        ))
     return s['series'][serie]
 
 
@@ -210,7 +215,7 @@ def choisir_d1(standard: str,
     joints = bloc['joints']
 
     if not joints:
-        raise ErreurJoints(f"Aucun joint dans {standard}/{serie}")
+        raise ErreurJoints(tr("No seal in {std}/{serie}", std=standard, serie=serie))
 
     # Seuils depuis parametres_calcul.json
     _st_cfg = _params_calcul()['stretch']
@@ -230,10 +235,12 @@ def choisir_d1(standard: str,
             joint = min(candidats, key=lambda j: abs(_st(j) - STRETCH_CIBLE))
         else:
             joint = min(joints, key=lambda j: abs(_st(j)))
-            alertes.append(
-                f"Aucun d1 dans la plage {STRETCH_MIN}–{STRETCH_MAX}% "
-                f"pour D_arbre={diametre_piece_mm} mm dans {standard}/{serie}"
-            )
+            alertes.append(tr(
+                "No d1 in the {min}–{max}% range "
+                "for D_shaft={d} mm in {std}/{serie}",
+                min=STRETCH_MIN, max=STRETCH_MAX, d=diametre_piece_mm,
+                std=standard, serie=serie
+            ))
 
     else:  # alesage
         COMPR_MIN = _st_cfg['alesage']['compression_min']   # 0%
@@ -247,10 +254,12 @@ def choisir_d1(standard: str,
             joint = min(candidats, key=lambda j: _cp(j))
         else:
             joint = min(joints, key=lambda j: abs(_cp(j)))
-            alertes.append(
-                f"Aucun d1 avec compression {COMPR_MIN}–{COMPR_MAX}% "
-                f"pour D_arbre={diametre_piece_mm} mm dans {standard}/{serie}"
-            )
+            alertes.append(tr(
+                "No d1 with compression {min}–{max}% "
+                "for D_shaft={d} mm in {std}/{serie}",
+                min=COMPR_MIN, max=COMPR_MAX, d=diametre_piece_mm,
+                std=standard, serie=serie
+            ))
 
     d1 = joint['d1']
     code = joint.get('code', None)
@@ -260,25 +269,29 @@ def choisir_d1(standard: str,
     avertissements = []
     if position == 'arbre':
         if stretch_pct > STRETCH_MAX_ACCEPTABLE:
-            alertes.append(
-                f"Étirement {stretch_pct:.1f}% > {STRETCH_MAX_ACCEPTABLE}% max — "
-                f"choisir un d1 plus grand ou une autre série"
-            )
+            alertes.append(tr(
+                "Stretch {stretch:.1f}% > {max}% max — "
+                "choose a larger d1 or a different series",
+                stretch=stretch_pct, max=STRETCH_MAX_ACCEPTABLE
+            ))
         elif stretch_pct > STRETCH_MAX_AVERT:
-            avertissements.append(
-                f"Étirement {stretch_pct:.1f}% > {STRETCH_MAX_AVERT}% — "
-                f"limite dynamique recommandée"
-            )
+            avertissements.append(tr(
+                "Stretch {stretch:.1f}% > {max}% — "
+                "recommended dynamic limit",
+                stretch=stretch_pct, max=STRETCH_MAX_AVERT
+            ))
         elif stretch_pct < STRETCH_MIN:
-            alertes.append(
-                f"d1={d1} mm > D_fond={diametre_piece_mm} mm — série inadaptée"
-            )
+            alertes.append(tr(
+                "d1={d1} mm > D_bottom={d_fond} mm — unsuitable series",
+                d1=d1, d_fond=diametre_piece_mm
+            ))
     else:
         compr = -stretch_pct
         if compr > COMPR_MAX:
-            alertes.append(
-                f"Compression initiale {compr:.1f}% > {COMPR_MAX}% max pour alésage"
-            )
+            alertes.append(tr(
+                "Initial compression {compr:.1f}% > {max}% max for bore",
+                compr=compr, max=COMPR_MAX
+            ))
 
     return {
         'd1'            : d1,
@@ -301,10 +314,11 @@ def get_plage_squeeze(type_montage: str) -> dict:
     """type_montage : 'statique' | 'dynamique_translation' | 'dynamique_rotation'"""
     plages = _table()['plages_squeeze_recommandees']
     if type_montage not in plages:
-        raise ErreurJoints(
-            f"Type '{type_montage}' inconnu. "
-            f"Valeurs : {[k for k in plages if not k.startswith('_')]}"
-        )
+        raise ErreurJoints(tr(
+            "Type '{type}' unknown. "
+            "Values: {available}",
+            type=type_montage, available=[k for k in plages if not k.startswith('_')]
+        ))
     return plages[type_montage]
 
 

@@ -14,6 +14,7 @@ Les deux fichiers JSON sont toujours chargés :
 import os
 import json
 import locale as _locale_mod
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
 
 # ---------------------------------------------------------------------------
 # Chemin du dossier locales
@@ -145,7 +146,8 @@ def init(oring_dir: str) -> str:
             with open(lang_file, 'r', encoding='utf-8') as f:
                 contenu = f.read()
             print(f"[ORing i18n] lang.txt contenu : {repr(contenu)}")
-            lignes = [l.strip() for l in contenu.strip().splitlines() if l.strip()]
+            lignes = [l.strip() for l in contenu.strip().splitlines()
+                      if l.strip() and not l.strip().startswith('#')]
             if lignes:
                 candidate = lignes[0].lower()[:2]
                 if candidate.isalpha():

@@ -1,30 +1,26 @@
 {
   "_commentaire": "Table dimensionnelle joints toriques — multi-standards",
-  "_version": "1.1",
+  "_version": "1.2",
   "_unite": "mm",
-  "_sources": [
-    "ISO 3601-1:2012 (= AS568 en métrique)",
-    "DIN 3771 (Deutsches Institut für Normung)",
-    "JIS B 2401:2012 série P (Japanese Industrial Standard)",
-    "Série métrique catalogue — Trelleborg / Parker / Simrit / Freudenberg"
-  ],
+  "_sources": "La provenance et le niveau de verification sont declares norme par norme dans standards[*].provenance. Niveaux : 'prouve' (catalogue fourni par l'utilisateur), 'corrobore' (sources independantes concordantes), 'non_verifie'.",
   "_note_d1": "d1 = diamètre intérieur nominal. d2 = diamètre de corde.",
   "standards": {
     "ISO_3601": {
       "nom_complet": "ISO 3601-1 / AS568 (métrique)",
-      "origine": "International / USA",
+      "origine": "Reconstruit le 11/09/2026. Les cotes precedentes etaient celles de la serie en pouces, rangees dans les mauvaises sections (meme defaut qu'AS 568 : voir constat_codes_as568_faux.md). Serie A (pouces) d'ISO 3601-1, cotes controlees via le catalogue Le Joint Francais 2024. Pas de code : un joint ISO se designe par ses cotes, pas par un numero.",
       "description": "Standard le plus répandu mondialement. Origine américaine (AS568), adopté par ISO. d2 en valeurs impériales converties.",
+      "provenance": {
+        "niveau": "prouve",
+        "cotes": "Catalogue Le Joint Francais 2024 — la serie A d'ISO 3601-1 est la serie en pouces d'AS 568, memes cotes",
+        "verification": "253 references, memes cotes qu'AS_568 reparties par section. Volontairement SANS code : le code AS 568 ne se recopie pas sous une qualification ISO.",
+        "date": "2026-09-11"
+      },
       "series": {
         "S1": {
           "d2_nominal": 1.78,
           "d2_tolerance": 0.08,
+          "description": "ISO 3601-1 série A — tore 1.78 mm",
           "joints": [
-            {
-              "d1": 1.07
-            },
-            {
-              "d1": 1.42
-            },
             {
               "d1": 1.78
             },
@@ -32,7 +28,10 @@
               "d1": 2.57
             },
             {
-              "d1": 3.69
+              "d1": 2.9
+            },
+            {
+              "d1": 3.68
             },
             {
               "d1": 4.47
@@ -42,9 +41,6 @@
             },
             {
               "d1": 6.07
-            },
-            {
-              "d1": 6.86
             },
             {
               "d1": 7.65
@@ -84,231 +80,208 @@
             },
             {
               "d1": 26.7
+            },
+            {
+              "d1": 28.3
+            },
+            {
+              "d1": 29.87
+            },
+            {
+              "d1": 31.47
+            },
+            {
+              "d1": 33.05
+            },
+            {
+              "d1": 34.65
+            },
+            {
+              "d1": 37.82
+            },
+            {
+              "d1": 41.0
+            },
+            {
+              "d1": 44.17
+            },
+            {
+              "d1": 50.52
+            },
+            {
+              "d1": 56.87
+            },
+            {
+              "d1": 63.22
+            },
+            {
+              "d1": 69.57
+            },
+            {
+              "d1": 75.92
+            },
+            {
+              "d1": 82.27
+            },
+            {
+              "d1": 88.62
+            },
+            {
+              "d1": 94.97
+            },
+            {
+              "d1": 101.32
+            },
+            {
+              "d1": 107.67
+            },
+            {
+              "d1": 114.02
+            },
+            {
+              "d1": 120.37
+            },
+            {
+              "d1": 126.72
+            },
+            {
+              "d1": 133.07
             }
           ]
         },
         "S2": {
           "d2_nominal": 2.62,
           "d2_tolerance": 0.09,
+          "description": "ISO 3601-1 série A — tore 2.62 mm",
           "joints": [
             {
-              "d1": 2.57
+              "d1": 2.06
             },
             {
-              "d1": 3.69
+              "d1": 2.84
             },
             {
-              "d1": 4.47
+              "d1": 4.42
             },
             {
-              "d1": 5.28
+              "d1": 7.59
             },
             {
-              "d1": 6.07
+              "d1": 9.19
             },
             {
-              "d1": 6.86
+              "d1": 10.77
             },
             {
-              "d1": 7.65
+              "d1": 12.37
             },
             {
-              "d1": 9.25
+              "d1": 13.94
             },
             {
-              "d1": 10.82
+              "d1": 15.54
             },
             {
-              "d1": 12.42
+              "d1": 17.12
             },
             {
-              "d1": 14.0
+              "d1": 18.72
             },
             {
-              "d1": 15.6
+              "d1": 20.29
             },
             {
-              "d1": 17.17
+              "d1": 21.89
             },
             {
-              "d1": 18.77
+              "d1": 23.47
             },
             {
-              "d1": 20.35
+              "d1": 25.07
             },
             {
-              "d1": 21.95
+              "d1": 26.64
             },
             {
-              "d1": 23.52
+              "d1": 28.24
             },
             {
-              "d1": 25.12
+              "d1": 29.82
             },
             {
-              "d1": 26.7
+              "d1": 31.42
             },
             {
-              "d1": 28.3
+              "d1": 32.99
             },
             {
-              "d1": 29.87
+              "d1": 34.59
             },
             {
-              "d1": 31.47
+              "d1": 36.17
             },
             {
-              "d1": 33.05
+              "d1": 37.77
             },
             {
-              "d1": 34.65
+              "d1": 39.34
             },
             {
-              "d1": 37.82
-            },
-            {
-              "d1": 40.94
+              "d1": 42.52
             },
             {
               "d1": 44.12
             },
             {
-              "d1": 47.29
-            },
-            {
-              "d1": 50.47
-            },
-            {
-              "d1": 53.64
-            },
-            {
-              "d1": 56.82
-            },
-            {
-              "d1": 59.99
-            },
-            {
-              "d1": 63.17
-            },
-            {
-              "d1": 66.34
-            },
-            {
-              "d1": 69.52
-            },
-            {
-              "d1": 72.69
-            },
-            {
-              "d1": 75.87
-            },
-            {
-              "d1": 82.22
-            },
-            {
-              "d1": 88.57
-            },
-            {
-              "d1": 94.92
-            },
-            {
-              "d1": 101.27
-            }
-          ]
-        },
-        "S3": {
-          "d2_nominal": 3.53,
-          "d2_tolerance": 0.1,
-          "joints": [
-            {
-              "d1": 6.07
-            },
-            {
-              "d1": 7.65
-            },
-            {
-              "d1": 9.25
-            },
-            {
-              "d1": 10.82
-            },
-            {
-              "d1": 12.42
-            },
-            {
-              "d1": 14.0
-            },
-            {
-              "d1": 15.6
-            },
-            {
-              "d1": 17.17
-            },
-            {
-              "d1": 18.77
-            },
-            {
-              "d1": 20.35
-            },
-            {
-              "d1": 21.95
-            },
-            {
-              "d1": 23.52
-            },
-            {
-              "d1": 25.12
-            },
-            {
-              "d1": 26.7
-            },
-            {
-              "d1": 28.3
-            },
-            {
-              "d1": 29.87
-            },
-            {
-              "d1": 31.47
-            },
-            {
-              "d1": 33.05
-            },
-            {
-              "d1": 34.65
-            },
-            {
-              "d1": 37.82
-            },
-            {
-              "d1": 40.94
-            },
-            {
-              "d1": 44.12
+              "d1": 45.69
             },
             {
               "d1": 47.29
             },
             {
+              "d1": 48.9
+            },
+            {
               "d1": 50.47
+            },
+            {
+              "d1": 52.07
             },
             {
               "d1": 53.64
             },
             {
+              "d1": 55.25
+            },
+            {
               "d1": 56.82
+            },
+            {
+              "d1": 58.42
             },
             {
               "d1": 59.99
             },
             {
+              "d1": 61.6
+            },
+            {
               "d1": 63.17
+            },
+            {
+              "d1": 64.77
             },
             {
               "d1": 66.34
             },
             {
+              "d1": 67.95
+            },
+            {
               "d1": 69.52
+            },
+            {
+              "d1": 71.12
             },
             {
               "d1": 72.69
@@ -359,223 +332,481 @@
               "d1": 164.77
             },
             {
-              "d1": 177.47
+              "d1": 183.82
             },
             {
-              "d1": 190.17
+              "d1": 234.62
+            }
+          ]
+        },
+        "S3": {
+          "d2_nominal": 3.53,
+          "d2_tolerance": 0.1,
+          "description": "ISO 3601-1 série A — tore 3.53 mm",
+          "joints": [
+            {
+              "d1": 9.12
             },
             {
-              "d1": 202.87
+              "d1": 12.29
             },
             {
-              "d1": 215.57
+              "d1": 13.87
             },
             {
-              "d1": 228.27
+              "d1": 15.47
+            },
+            {
+              "d1": 17.04
+            },
+            {
+              "d1": 18.64
+            },
+            {
+              "d1": 20.22
+            },
+            {
+              "d1": 21.82
+            },
+            {
+              "d1": 23.39
+            },
+            {
+              "d1": 24.99
+            },
+            {
+              "d1": 26.57
+            },
+            {
+              "d1": 28.17
+            },
+            {
+              "d1": 29.74
+            },
+            {
+              "d1": 31.34
+            },
+            {
+              "d1": 32.92
+            },
+            {
+              "d1": 34.52
+            },
+            {
+              "d1": 36.09
+            },
+            {
+              "d1": 37.69
+            },
+            {
+              "d1": 40.87
+            },
+            {
+              "d1": 47.22
+            },
+            {
+              "d1": 53.57
+            },
+            {
+              "d1": 59.92
+            },
+            {
+              "d1": 66.27
+            },
+            {
+              "d1": 72.62
+            },
+            {
+              "d1": 75.79
+            },
+            {
+              "d1": 78.97
+            },
+            {
+              "d1": 85.32
+            },
+            {
+              "d1": 91.67
+            },
+            {
+              "d1": 98.02
+            },
+            {
+              "d1": 104.37
+            },
+            {
+              "d1": 110.72
+            },
+            {
+              "d1": 117.07
+            },
+            {
+              "d1": 123.42
+            },
+            {
+              "d1": 126.6
+            },
+            {
+              "d1": 129.77
+            },
+            {
+              "d1": 132.94
+            },
+            {
+              "d1": 136.12
+            },
+            {
+              "d1": 139.3
+            },
+            {
+              "d1": 142.47
+            },
+            {
+              "d1": 145.64
+            },
+            {
+              "d1": 148.82
+            },
+            {
+              "d1": 158.34
+            },
+            {
+              "d1": 183.74
+            },
+            {
+              "d1": 202.8
+            },
+            {
+              "d1": 209.14
+            },
+            {
+              "d1": 215.49
+            },
+            {
+              "d1": 221.84
+            },
+            {
+              "d1": 228.19
+            },
+            {
+              "d1": 234.54
+            },
+            {
+              "d1": 247.24
+            },
+            {
+              "d1": 253.59
+            },
+            {
+              "d1": 266.29
+            },
+            {
+              "d1": 278.99
+            },
+            {
+              "d1": 291.69
+            },
+            {
+              "d1": 304.39
+            },
+            {
+              "d1": 329.79
+            },
+            {
+              "d1": 355.19
+            },
+            {
+              "d1": 405.26
+            },
+            {
+              "d1": 430.66
             }
           ]
         },
         "S4": {
           "d2_nominal": 5.33,
           "d2_tolerance": 0.13,
+          "description": "ISO 3601-1 série A — tore 5.33 mm",
           "joints": [
             {
-              "d1": 22.4
+              "d1": 21.59
             },
             {
-              "d1": 25.58
+              "d1": 23.16
             },
             {
-              "d1": 28.75
+              "d1": 34.29
             },
             {
-              "d1": 31.93
+              "d1": 37.47
             },
             {
-              "d1": 35.1
+              "d1": 40.64
             },
             {
-              "d1": 38.28
+              "d1": 43.82
             },
             {
-              "d1": 41.45
+              "d1": 46.99
             },
             {
-              "d1": 44.63
+              "d1": 50.17
             },
             {
-              "d1": 47.8
+              "d1": 53.34
             },
             {
-              "d1": 50.98
+              "d1": 56.52
             },
             {
-              "d1": 54.15
+              "d1": 59.69
             },
             {
-              "d1": 57.33
+              "d1": 62.87
             },
             {
-              "d1": 60.5
+              "d1": 66.04
             },
             {
-              "d1": 63.68
+              "d1": 69.22
             },
             {
-              "d1": 66.85
+              "d1": 72.39
             },
             {
-              "d1": 70.03
+              "d1": 75.57
             },
             {
-              "d1": 76.38
+              "d1": 78.74
             },
             {
-              "d1": 82.73
+              "d1": 81.92
             },
             {
-              "d1": 89.08
+              "d1": 85.09
             },
             {
-              "d1": 95.43
+              "d1": 88.27
             },
             {
-              "d1": 101.78
+              "d1": 91.44
             },
             {
-              "d1": 108.13
+              "d1": 94.62
             },
             {
-              "d1": 114.48
+              "d1": 97.79
             },
             {
-              "d1": 120.83
+              "d1": 100.97
             },
             {
-              "d1": 127.18
+              "d1": 104.14
             },
             {
-              "d1": 133.53
+              "d1": 107.32
             },
             {
-              "d1": 139.88
+              "d1": 110.49
             },
             {
-              "d1": 146.23
+              "d1": 113.67
             },
             {
-              "d1": 152.58
+              "d1": 126.37
             },
             {
-              "d1": 158.93
+              "d1": 129.54
             },
             {
-              "d1": 165.28
+              "d1": 132.72
             },
             {
-              "d1": 171.63
+              "d1": 142.24
             },
             {
-              "d1": 177.98
+              "d1": 148.59
             },
             {
-              "d1": 184.33
+              "d1": 158.12
             },
             {
-              "d1": 190.68
+              "d1": 164.47
             },
             {
-              "d1": 203.38
+              "d1": 170.82
             },
             {
-              "d1": 216.08
+              "d1": 177.17
             },
             {
-              "d1": 228.78
+              "d1": 196.22
             },
             {
-              "d1": 241.48
+              "d1": 202.57
             },
             {
-              "d1": 254.18
+              "d1": 215.27
+            },
+            {
+              "d1": 221.62
+            },
+            {
+              "d1": 227.97
+            },
+            {
+              "d1": 234.32
+            },
+            {
+              "d1": 240.67
+            },
+            {
+              "d1": 278.77
+            },
+            {
+              "d1": 291.47
+            },
+            {
+              "d1": 329.57
+            },
+            {
+              "d1": 380.37
+            },
+            {
+              "d1": 405.26
+            },
+            {
+              "d1": 582.68
             }
           ]
         },
         "S5": {
           "d2_nominal": 6.99,
           "d2_tolerance": 0.15,
+          "description": "ISO 3601-1 série A — tore 6.99 mm",
           "joints": [
             {
-              "d1": 107.37
+              "d1": 113.67
             },
             {
-              "d1": 114.42
+              "d1": 116.84
             },
             {
-              "d1": 120.77
+              "d1": 120.02
             },
             {
-              "d1": 127.12
+              "d1": 123.19
             },
             {
-              "d1": 133.47
+              "d1": 126.37
             },
             {
-              "d1": 139.82
+              "d1": 129.54
             },
             {
-              "d1": 146.17
+              "d1": 132.72
             },
             {
-              "d1": 152.52
+              "d1": 135.89
             },
             {
-              "d1": 158.87
+              "d1": 139.07
             },
             {
-              "d1": 165.22
+              "d1": 142.24
             },
             {
-              "d1": 171.57
+              "d1": 145.42
             },
             {
-              "d1": 177.92
+              "d1": 148.59
             },
             {
-              "d1": 184.27
+              "d1": 151.77
             },
             {
-              "d1": 190.62
+              "d1": 158.12
             },
             {
-              "d1": 203.32
+              "d1": 164.47
             },
             {
-              "d1": 216.02
+              "d1": 170.82
             },
             {
-              "d1": 228.72
+              "d1": 177.17
             },
             {
-              "d1": 241.42
+              "d1": 183.52
             },
             {
-              "d1": 254.12
+              "d1": 189.87
             },
             {
-              "d1": 266.82
+              "d1": 196.22
             },
             {
-              "d1": 279.52
+              "d1": 202.57
             },
             {
-              "d1": 304.92
+              "d1": 215.27
             },
             {
-              "d1": 330.32
+              "d1": 227.97
             },
             {
-              "d1": 355.72
+              "d1": 240.67
+            },
+            {
+              "d1": 253.37
+            },
+            {
+              "d1": 266.07
+            },
+            {
+              "d1": 278.77
+            },
+            {
+              "d1": 291.47
+            },
+            {
+              "d1": 304.17
+            },
+            {
+              "d1": 316.87
+            },
+            {
+              "d1": 329.57
+            },
+            {
+              "d1": 342.27
+            },
+            {
+              "d1": 354.97
+            },
+            {
+              "d1": 367.67
+            },
+            {
+              "d1": 380.37
+            },
+            {
+              "d1": 393.07
+            },
+            {
+              "d1": 430.66
+            },
+            {
+              "d1": 532.26
+            },
+            {
+              "d1": 557.66
+            },
+            {
+              "d1": 582.68
+            },
+            {
+              "d1": 608.08
             }
           ]
         }
@@ -585,6 +816,12 @@
       "nom_complet": "DIN 3771 (Deutsches Institut für Normung)",
       "origine": "Allemagne",
       "description": "Standard allemand, largement remplacé par ISO 3601 mais encore présent sur d'anciens plans. Identifié par ID×CS. d2 en valeurs rondes métriques.",
+      "provenance": {
+        "niveau": "corrobore",
+        "cotes": "Series D1 a D3 : bloc d'origine de la macro, confirme. Series D4 et D5 : reconstruites le 2026-10-08 depuis prepol.com (ISO 3601, series metriques 1,80 / 2,65 / 3,55 / 5,30 / 7,00 = DIN 3771-1).",
+        "verification": "Sections confirmees par deux sources independantes : prepol.com et la brochure TECHNO-PARTS 0320C (en-tetes 'Abmessungen nach DIN 3771, Teil 1' : 1,80 / 2,65 / 3,55 / 5,30 / 7,00 ; aucune section 5,00). Les 116 d1 de D1 a D3 figurent tous dans prepol.com. A remplace une serie D4 a 5,00 mm (section inexistante dans DIN 3771, d1 de 30 a 200) et une serie D5 a 7,00 mm dont les d1 de 60 a 106 n'existent pas dans la norme (elle commence a 109). Regle interne verifiee : la serie metrique partage une seule progression de d1 entre sections, tout d1 de D4/D5 jusqu'a 200 mm existe dans D3/prepol 3,55. D5 au-dela de 200 mm recoupe aussi la brochure TECHNO-PARTS. Pas de catalogue fournisseur de l'utilisateur : niveau 'corrobore', pas 'prouve'.",
+        "date": "2026-10-08"
+      },
       "series": {
         "D1": {
           "d2_nominal": 1.8,
@@ -953,107 +1190,182 @@
           ]
         },
         "D4": {
-          "d2_nominal": 5.0,
+          "d2_nominal": 5.3,
           "d2_tolerance": 0.13,
           "joints": [
             {
-              "d1": 30.0
-            },
-            {
-              "d1": 31.5
-            },
-            {
-              "d1": 33.5
-            },
-            {
-              "d1": 35.5
-            },
-            {
               "d1": 37.5
+            },
+            {
+              "d1": 38.7
             },
             {
               "d1": 40.0
             },
             {
+              "d1": 41.2
+            },
+            {
               "d1": 42.5
+            },
+            {
+              "d1": 43.7
             },
             {
               "d1": 45.0
             },
             {
+              "d1": 46.2
+            },
+            {
               "d1": 47.5
+            },
+            {
+              "d1": 48.7
             },
             {
               "d1": 50.0
             },
             {
+              "d1": 51.5
+            },
+            {
               "d1": 53.0
+            },
+            {
+              "d1": 54.5
             },
             {
               "d1": 56.0
             },
             {
+              "d1": 58.0
+            },
+            {
               "d1": 60.0
+            },
+            {
+              "d1": 61.5
             },
             {
               "d1": 63.0
             },
             {
+              "d1": 65.0
+            },
+            {
               "d1": 67.0
+            },
+            {
+              "d1": 69.0
             },
             {
               "d1": 71.0
             },
             {
+              "d1": 73.0
+            },
+            {
               "d1": 75.0
+            },
+            {
+              "d1": 77.5
             },
             {
               "d1": 80.0
             },
             {
+              "d1": 82.5
+            },
+            {
               "d1": 85.0
+            },
+            {
+              "d1": 87.5
             },
             {
               "d1": 90.0
             },
             {
+              "d1": 92.5
+            },
+            {
               "d1": 95.0
+            },
+            {
+              "d1": 97.5
             },
             {
               "d1": 100.0
             },
             {
+              "d1": 103.0
+            },
+            {
               "d1": 106.0
+            },
+            {
+              "d1": 109.0
             },
             {
               "d1": 112.0
             },
             {
+              "d1": 115.0
+            },
+            {
               "d1": 118.0
+            },
+            {
+              "d1": 122.0
             },
             {
               "d1": 125.0
             },
             {
+              "d1": 128.0
+            },
+            {
               "d1": 132.0
+            },
+            {
+              "d1": 136.0
             },
             {
               "d1": 140.0
             },
             {
+              "d1": 145.0
+            },
+            {
               "d1": 150.0
+            },
+            {
+              "d1": 155.0
             },
             {
               "d1": 160.0
             },
             {
+              "d1": 165.0
+            },
+            {
               "d1": 170.0
+            },
+            {
+              "d1": 175.0
             },
             {
               "d1": 180.0
             },
             {
+              "d1": 185.0
+            },
+            {
               "d1": 190.0
+            },
+            {
+              "d1": 195.0
             },
             {
               "d1": 200.0
@@ -1065,82 +1377,142 @@
           "d2_tolerance": 0.15,
           "joints": [
             {
-              "d1": 60.0
-            },
-            {
-              "d1": 63.0
-            },
-            {
-              "d1": 67.0
-            },
-            {
-              "d1": 71.0
-            },
-            {
-              "d1": 75.0
-            },
-            {
-              "d1": 80.0
-            },
-            {
-              "d1": 85.0
-            },
-            {
-              "d1": 90.0
-            },
-            {
-              "d1": 95.0
-            },
-            {
-              "d1": 100.0
-            },
-            {
-              "d1": 106.0
+              "d1": 109.0
             },
             {
               "d1": 112.0
             },
             {
+              "d1": 115.0
+            },
+            {
               "d1": 118.0
+            },
+            {
+              "d1": 122.0
             },
             {
               "d1": 125.0
             },
             {
+              "d1": 128.0
+            },
+            {
               "d1": 132.0
+            },
+            {
+              "d1": 136.0
             },
             {
               "d1": 140.0
             },
             {
+              "d1": 145.0
+            },
+            {
               "d1": 150.0
+            },
+            {
+              "d1": 155.0
             },
             {
               "d1": 160.0
             },
             {
+              "d1": 165.0
+            },
+            {
               "d1": 170.0
+            },
+            {
+              "d1": 175.0
             },
             {
               "d1": 180.0
             },
             {
+              "d1": 185.0
+            },
+            {
               "d1": 190.0
+            },
+            {
+              "d1": 195.0
             },
             {
               "d1": 200.0
             },
             {
+              "d1": 206.0
+            },
+            {
               "d1": 212.0
+            },
+            {
+              "d1": 218.0
             },
             {
               "d1": 224.0
             },
             {
+              "d1": 230.0
+            },
+            {
               "d1": 236.0
             },
             {
+              "d1": 243.0
+            },
+            {
               "d1": 250.0
+            },
+            {
+              "d1": 258.0
+            },
+            {
+              "d1": 265.0
+            },
+            {
+              "d1": 272.0
+            },
+            {
+              "d1": 280.0
+            },
+            {
+              "d1": 290.0
+            },
+            {
+              "d1": 300.0
+            },
+            {
+              "d1": 307.0
+            },
+            {
+              "d1": 315.0
+            },
+            {
+              "d1": 325.0
+            },
+            {
+              "d1": 335.0
+            },
+            {
+              "d1": 345.0
+            },
+            {
+              "d1": 355.0
+            },
+            {
+              "d1": 365.0
+            },
+            {
+              "d1": 375.0
+            },
+            {
+              "d1": 387.0
+            },
+            {
+              "d1": 400.0
             }
           ]
         }
@@ -1149,12 +1521,18 @@
     "JIS_B2401": {
       "nom_complet": "JIS B 2401 — série P (dynamique/statique)",
       "origine": "Japon",
-      "description": "Standard japonais. Série P : usage général (dynamique et statique). d2 progressif selon d1. Identifié par code P-xxx.",
+      "description": "Standard japonais. Serie P : usage general (dynamique et statique). d2 progressif selon d1. Identifie par code P-xxx. Reconstruit le 13/09/2026.",
+      "provenance": {
+        "niveau": "corrobore",
+        "cotes": "Quatre sources independantes concordantes : thisoldtractor.com, PDF Polymax, prepol.com, savvyrubber.com",
+        "verification": "122 references. Liste des codes et 122 d1 confirmes a l'identique par prepol.com (0 ecart) ; affectation des sections confirmee par savvyrubber.com aux quatre frontieres critiques (P10/P10A, P22/P22A, P50/P48A, P150/P150A). Verifie en outre par la regle interne d1 = nominal - retrait (0,2 / 0,3 / 0,4 / 0,5 selon la section), respectee par les 122 lignes. A remplace un bloc dont 16 references sur 111 seulement etaient justes.",
+        "date": "2026-09-13"
+      },
       "series": {
         "P_S1": {
           "d2_nominal": 1.9,
           "d2_tolerance": 0.08,
-          "description": "Petits diamètres — code P-3 à P-10",
+          "description": "JIS B 2401 serie P — tore 1.9 mm — code P-3 a P-10",
           "joints": [
             {
               "d1": 2.8,
@@ -1193,7 +1571,7 @@
         "P_S2": {
           "d2_nominal": 2.4,
           "d2_tolerance": 0.09,
-          "description": "Diamètres moyens — code P-10A à P-46",
+          "description": "JIS B 2401 serie P — tore 2.4 mm — code P-10A a P-22",
           "joints": [
             {
               "d1": 9.8,
@@ -1212,8 +1590,8 @@
               "code": "P-12"
             },
             {
-              "d1": 12.8,
-              "code": "P-13"
+              "d1": 12.3,
+              "code": "P-12.5"
             },
             {
               "d1": 13.8,
@@ -1228,382 +1606,277 @@
               "code": "P-16"
             },
             {
-              "d1": 16.8,
+              "d1": 17.8,
               "code": "P-18"
             },
             {
-              "d1": 18.8,
+              "d1": 19.8,
               "code": "P-20"
             },
             {
-              "d1": 19.8,
+              "d1": 20.8,
               "code": "P-21"
             },
             {
-              "d1": 20.8,
-              "code": "P-22"
-            },
-            {
               "d1": 21.8,
-              "code": "P-22.4"
-            },
-            {
-              "d1": 22.8,
-              "code": "P-24"
-            },
-            {
-              "d1": 23.8,
-              "code": "P-25"
-            },
-            {
-              "d1": 24.8,
-              "code": "P-25.5"
-            },
-            {
-              "d1": 25.8,
-              "code": "P-26"
-            },
-            {
-              "d1": 27.8,
-              "code": "P-28"
-            },
-            {
-              "d1": 28.8,
-              "code": "P-29"
-            },
-            {
-              "d1": 29.8,
-              "code": "P-30"
-            },
-            {
-              "d1": 30.8,
-              "code": "P-31"
-            },
-            {
-              "d1": 31.8,
-              "code": "P-32"
-            },
-            {
-              "d1": 32.8,
-              "code": "P-34"
-            },
-            {
-              "d1": 33.8,
-              "code": "P-35"
-            },
-            {
-              "d1": 34.8,
-              "code": "P-35.5"
-            },
-            {
-              "d1": 35.8,
-              "code": "P-36"
-            },
-            {
-              "d1": 37.8,
-              "code": "P-38"
-            },
-            {
-              "d1": 39.8,
-              "code": "P-40"
-            },
-            {
-              "d1": 41.8,
-              "code": "P-42"
-            },
-            {
-              "d1": 42.8,
-              "code": "P-44"
-            },
-            {
-              "d1": 43.8,
-              "code": "P-45"
-            },
-            {
-              "d1": 44.8,
-              "code": "P-46"
+              "code": "P-22"
             }
           ]
         },
         "P_S3": {
           "d2_nominal": 3.5,
           "d2_tolerance": 0.1,
-          "description": "Diamètres intermédiaires — code P-48 à P-70",
+          "description": "JIS B 2401 serie P — tore 3.5 mm — code P-22A a P-50",
           "joints": [
             {
-              "d1": 46.8,
+              "d1": 21.7,
+              "code": "P-22A"
+            },
+            {
+              "d1": 22.1,
+              "code": "P-22.4"
+            },
+            {
+              "d1": 23.7,
+              "code": "P-24"
+            },
+            {
+              "d1": 24.7,
+              "code": "P-25"
+            },
+            {
+              "d1": 25.2,
+              "code": "P-25.5"
+            },
+            {
+              "d1": 25.7,
+              "code": "P-26"
+            },
+            {
+              "d1": 27.7,
+              "code": "P-28"
+            },
+            {
+              "d1": 28.7,
+              "code": "P-29"
+            },
+            {
+              "d1": 29.2,
+              "code": "P-29.5"
+            },
+            {
+              "d1": 29.7,
+              "code": "P-30"
+            },
+            {
+              "d1": 30.7,
+              "code": "P-31"
+            },
+            {
+              "d1": 31.2,
+              "code": "P-31.5"
+            },
+            {
+              "d1": 31.7,
+              "code": "P-32"
+            },
+            {
+              "d1": 33.7,
+              "code": "P-34"
+            },
+            {
+              "d1": 34.7,
+              "code": "P-35"
+            },
+            {
+              "d1": 35.2,
+              "code": "P-35.5"
+            },
+            {
+              "d1": 35.7,
+              "code": "P-36"
+            },
+            {
+              "d1": 37.7,
+              "code": "P-38"
+            },
+            {
+              "d1": 38.7,
+              "code": "P-39"
+            },
+            {
+              "d1": 39.7,
+              "code": "P-40"
+            },
+            {
+              "d1": 40.7,
+              "code": "P-41"
+            },
+            {
+              "d1": 41.7,
+              "code": "P-42"
+            },
+            {
+              "d1": 43.7,
+              "code": "P-44"
+            },
+            {
+              "d1": 44.7,
+              "code": "P-45"
+            },
+            {
+              "d1": 45.7,
+              "code": "P-46"
+            },
+            {
+              "d1": 47.7,
               "code": "P-48"
             },
             {
-              "d1": 47.8,
+              "d1": 48.7,
               "code": "P-49"
             },
             {
-              "d1": 48.8,
+              "d1": 49.7,
               "code": "P-50"
-            },
-            {
-              "d1": 50.8,
-              "code": "P-52"
-            },
-            {
-              "d1": 51.8,
-              "code": "P-53"
-            },
-            {
-              "d1": 53.8,
-              "code": "P-55"
-            },
-            {
-              "d1": 55.8,
-              "code": "P-56"
-            },
-            {
-              "d1": 57.8,
-              "code": "P-58"
-            },
-            {
-              "d1": 59.8,
-              "code": "P-60"
-            },
-            {
-              "d1": 61.8,
-              "code": "P-62"
-            },
-            {
-              "d1": 62.8,
-              "code": "P-63"
-            },
-            {
-              "d1": 63.8,
-              "code": "P-65"
-            },
-            {
-              "d1": 65.8,
-              "code": "P-67"
-            },
-            {
-              "d1": 67.8,
-              "code": "P-70"
             }
           ]
         },
         "P_S4": {
           "d2_nominal": 5.7,
           "d2_tolerance": 0.13,
-          "description": "Grands diamètres — code P-48A à P-150",
+          "description": "JIS B 2401 serie P — tore 5.7 mm — code P-48A a P-150",
           "joints": [
             {
-              "d1": 46.6,
+              "d1": 47.6,
               "code": "P-48A"
             },
             {
-              "d1": 48.6,
+              "d1": 49.6,
               "code": "P-50A"
             },
             {
-              "d1": 50.6,
+              "d1": 51.6,
               "code": "P-52"
             },
             {
-              "d1": 51.6,
+              "d1": 52.6,
               "code": "P-53"
             },
             {
-              "d1": 53.6,
+              "d1": 54.6,
               "code": "P-55"
             },
             {
-              "d1": 54.6,
-              "code": "P56",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
-            },
-            {
               "d1": 55.6,
-              "code": "P57",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "code": "P-56"
             },
             {
-              "d1": 56.6,
-              "code": "P58",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "d1": 57.6,
+              "code": "P-58"
             },
             {
-              "d1": 58.6,
-              "code": "P60",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
-            },
-            {
-              "d1": 60.6,
-              "code": "P62",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "d1": 59.6,
+              "code": "P-60"
             },
             {
               "d1": 61.6,
-              "code": "P63",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "code": "P-62"
             },
             {
-              "d1": 63.6,
-              "code": "P65",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "d1": 62.6,
+              "code": "P-63"
             },
             {
-              "d1": 65.6,
-              "code": "P67",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "d1": 64.6,
+              "code": "P-65"
             },
             {
               "d1": 66.6,
-              "code": "P68",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
-            },
-            {
-              "d1": 68.6,
-              "code": "P70",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.046
-                }
-              ]
+              "code": "P-67"
             },
             {
               "d1": 69.6,
+              "code": "P-70"
+            },
+            {
+              "d1": 70.6,
               "code": "P-71"
             },
             {
-              "d1": 73.6,
+              "d1": 74.6,
               "code": "P-75"
             },
             {
-              "d1": 78.6,
+              "d1": 79.6,
               "code": "P-80"
             },
             {
-              "d1": 83.6,
+              "d1": 84.6,
               "code": "P-85"
             },
             {
-              "d1": 88.6,
+              "d1": 89.6,
               "code": "P-90"
             },
             {
-              "d1": 93.6,
+              "d1": 94.6,
               "code": "P-95"
             },
             {
-              "d1": 98.6,
+              "d1": 99.6,
               "code": "P-100"
             },
             {
-              "d1": 100.6,
+              "d1": 101.6,
               "code": "P-102"
             },
             {
-              "d1": 103.6,
+              "d1": 104.6,
               "code": "P-105"
             },
             {
-              "d1": 108.6,
+              "d1": 109.6,
               "code": "P-110"
             },
             {
-              "d1": 110.6,
+              "d1": 111.6,
               "code": "P-112"
             },
             {
-              "d1": 113.6,
-              "code": "P115",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.054
-                }
-              ]
+              "d1": 114.6,
+              "code": "P-115"
             },
             {
-              "d1": 118.6,
+              "d1": 119.6,
               "code": "P-120"
             },
             {
-              "d1": 123.6,
+              "d1": 124.6,
               "code": "P-125"
             },
             {
-              "d1": 128.6,
+              "d1": 129.6,
               "code": "P-130"
             },
             {
-              "d1": 133.6,
+              "d1": 131.6,
+              "code": "P-132"
+            },
+            {
+              "d1": 134.6,
               "code": "P-135"
             },
             {
-              "d1": 138.6,
+              "d1": 139.6,
               "code": "P-140"
             },
             {
-              "d1": 143.6,
+              "d1": 144.6,
               "code": "P-145"
             },
             {
-              "d1": 148.6,
+              "d1": 149.6,
               "code": "P-150"
             }
           ]
@@ -1611,42 +1884,54 @@
         "P_S5": {
           "d2_nominal": 8.4,
           "d2_tolerance": 0.15,
-          "description": "Très grands diamètres — code P-165 et plus",
+          "description": "JIS B 2401 serie P — tore 8.4 mm — code P-150A a P-400",
           "joints": [
             {
-              "d1": 163.5,
+              "d1": 149.5,
+              "code": "P-150A"
+            },
+            {
+              "d1": 154.5,
+              "code": "P-155"
+            },
+            {
+              "d1": 159.5,
+              "code": "P-160"
+            },
+            {
+              "d1": 164.5,
               "code": "P-165"
             },
             {
-              "d1": 168.5,
+              "d1": 169.5,
               "code": "P-170"
             },
             {
-              "d1": 173.5,
+              "d1": 174.5,
               "code": "P-175"
             },
             {
-              "d1": 178.5,
+              "d1": 179.5,
               "code": "P-180"
             },
             {
-              "d1": 183.5,
+              "d1": 184.5,
               "code": "P-185"
             },
             {
-              "d1": 188.5,
+              "d1": 189.5,
               "code": "P-190"
             },
             {
-              "d1": 193.5,
+              "d1": 194.5,
               "code": "P-195"
             },
             {
-              "d1": 198.5,
+              "d1": 199.5,
               "code": "P-200"
             },
             {
-              "d1": 203.5,
+              "d1": 204.5,
               "code": "P-205"
             },
             {
@@ -1654,394 +1939,116 @@
               "code": "P-209"
             },
             {
-              "d1": 213.5,
+              "d1": 209.5,
+              "code": "P-210"
+            },
+            {
+              "d1": 214.5,
               "code": "P-215"
             },
             {
-              "d1": 218.5,
+              "d1": 219.5,
               "code": "P-220"
             },
             {
-              "d1": 223.5,
+              "d1": 224.5,
               "code": "P-225"
             },
             {
-              "d1": 228.5,
+              "d1": 229.5,
               "code": "P-230"
             },
             {
-              "d1": 233.5,
-              "code": "P235",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.072
-                }
-              ]
+              "d1": 234.5,
+              "code": "P-235"
             },
             {
-              "d1": 238.5,
-              "code": "P240",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.072
-                }
-              ]
+              "d1": 239.5,
+              "code": "P-240"
             },
             {
-              "d1": 243.5,
-              "code": "P245",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.072
-                }
-              ]
+              "d1": 244.5,
+              "code": "P-245"
             },
             {
-              "d1": 248.5,
-              "code": "P250",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.072
-                }
-              ]
+              "d1": 249.5,
+              "code": "P-250"
             },
             {
-              "d1": 253.5,
-              "code": "P255",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 254.5,
+              "code": "P-255"
             },
             {
-              "d1": 258.5,
-              "code": "P260",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 259.5,
+              "code": "P-260"
             },
             {
-              "d1": 263.5,
-              "code": "P265",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 264.5,
+              "code": "P-265"
             },
             {
-              "d1": 268.5,
-              "code": "P270",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 269.5,
+              "code": "P-270"
             },
             {
-              "d1": 273.5,
-              "code": "P275",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 274.5,
+              "code": "P-275"
             },
             {
-              "d1": 278.5,
-              "code": "P280",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 279.5,
+              "code": "P-280"
             },
             {
-              "d1": 283.5,
-              "code": "P285",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 284.5,
+              "code": "P-285"
             },
             {
-              "d1": 288.5,
-              "code": "P290",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 289.5,
+              "code": "P-290"
             },
             {
-              "d1": 293.5,
-              "code": "P295",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 294.5,
+              "code": "P-295"
             },
             {
-              "d1": 298.5,
-              "code": "P300",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 299.5,
+              "code": "P-300"
             },
             {
-              "d1": 303.5,
-              "code": "P305",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 314.5,
+              "code": "P-315"
             },
             {
-              "d1": 308.5,
-              "code": "P310",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 319.5,
+              "code": "P-320"
             },
             {
-              "d1": 313.5,
-              "code": "P315",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.081
-                }
-              ]
+              "d1": 334.5,
+              "code": "P-335"
             },
             {
-              "d1": 318.5,
-              "code": "P320",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
+              "d1": 339.5,
+              "code": "P-340"
             },
             {
-              "d1": 323.5,
-              "code": "P325",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
+              "d1": 354.5,
+              "code": "P-355"
             },
             {
-              "d1": 328.5,
-              "code": "P330",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
+              "d1": 359.5,
+              "code": "P-360"
             },
             {
-              "d1": 333.5,
-              "code": "P335",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
+              "d1": 374.5,
+              "code": "P-375"
             },
             {
-              "d1": 338.5,
-              "code": "P340",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
+              "d1": 384.5,
+              "code": "P-385"
             },
             {
-              "d1": 343.5,
-              "code": "P345",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 348.5,
-              "code": "P350",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 353.5,
-              "code": "P355",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 358.5,
-              "code": "P360",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 363.5,
-              "code": "P365",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 368.5,
-              "code": "P370",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 373.5,
-              "code": "P375",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 378.5,
-              "code": "P380",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 383.5,
-              "code": "P385",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 388.5,
-              "code": "P390",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 393.5,
-              "code": "P395",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
-            },
-            {
-              "d1": 398.5,
-              "code": "P400",
-              "tol_d1": [
-                {
-                  "qualite": "h8",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.089
-                }
-              ]
+              "d1": 399.5,
+              "code": "P-400"
             }
           ]
         }
@@ -2051,6 +2058,12 @@
       "nom_complet": "Série métrique catalogue (Europe)",
       "origine": "Europe — catalogues industriels (Trelleborg, Parker, Simrit…)",
       "description": "Série métrique «ronde» très répandue dans les catalogues européens. d2 en valeurs entières ou demi-entières. Repérage par ID×d2 mm. Pas de code normalisé unique.",
+      "provenance": {
+        "niveau": "non_verifie",
+        "cotes": "Bloc d'origine de la macro, provenance inconnue. Dimensionnel metrique generique, pas une norme publiee",
+        "verification": "Aucune source de controle. 137 de ses 343 cotes se retrouvent dans la liste metrique du catalogue Le Joint Francais, ce qui est coherent sans rien demontrer. Series entierement rondes et regulieres : pour un dimensionnel metrique c'est ATTENDU, donc aucun signal ni dans un sens ni dans l'autre.",
+        "date": "2026-09-13"
+      },
       "series": {
         "M1": {
           "d2_nominal": 1.0,
@@ -3149,6 +3162,13 @@
     "AS_568": {
       "description": "SAE AS568C — Standard aérospatial américain (anciennement MIL-G-1149)",
       "organisme": "SAE International",
+      "origine": "Reconstruit le 11/09/2026 depuis le catalogue Le Joint Francais 2024 (liste dimensionnelle p.72-130). Le bloc precedent attachait les references aux mauvaises cotes : voir constat_codes_as568_faux.md.",
+      "provenance": {
+        "niveau": "prouve",
+        "cotes": "Catalogue Le Joint Francais 2024, colonne « Normes dimensionnelles », references AS568-xxx",
+        "verification": "253 references relevees directement dans le catalogue. A remplace un bloc dont les 147 references communes etaient toutes fausses.",
+        "date": "2026-09-11"
+      },
       "series": {
         "A000": {
           "d2_nominal": 1.78,
@@ -3156,282 +3176,175 @@
             "ecart_sup": 0.08,
             "ecart_inf": -0.08
           },
-          "description": "Série 000 — petits joints (d2=0.070\")",
+          "description": "AS 568 — série A000, tore 1.78 mm",
           "joints": [
             {
-              "d1": 0.74,
-              "code": "AS568-001",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
-            },
-            {
-              "d1": 1.02,
-              "code": "AS568-002",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
-            },
-            {
-              "d1": 1.27,
-              "code": "AS568-003",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
-            },
-            {
-              "d1": 1.52,
-              "code": "AS568-004",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
-            },
-            {
               "d1": 1.78,
-              "code": "AS568-005",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "code": "AS568-004"
             },
             {
               "d1": 2.57,
-              "code": "AS568-006",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "code": "AS568-005"
             },
             {
-              "d1": 3.43,
-              "code": "AS568-007",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 2.9,
+              "code": "AS568-006"
             },
             {
-              "d1": 4.27,
-              "code": "AS568-008",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 3.68,
+              "code": "AS568-007"
             },
             {
-              "d1": 5.13,
-              "code": "AS568-009",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 4.47,
+              "code": "AS568-008"
             },
             {
-              "d1": 6.02,
-              "code": "AS568-010",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 5.28,
+              "code": "AS568-009"
             },
             {
-              "d1": 6.86,
-              "code": "AS568-011",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 6.07,
+              "code": "AS568-010"
             },
             {
               "d1": 7.65,
-              "code": "AS568-012",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
-            },
-            {
-              "d1": 8.51,
-              "code": "AS568-013",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "code": "AS568-011"
             },
             {
               "d1": 9.25,
-              "code": "AS568-014",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "code": "AS568-012"
             },
             {
               "d1": 10.82,
-              "code": "AS568-015",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "code": "AS568-013"
             },
             {
-              "d1": 12.37,
-              "code": "AS568-016",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 12.42,
+              "code": "AS568-014"
             },
             {
-              "d1": 13.95,
-              "code": "AS568-017",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 14.0,
+              "code": "AS568-015"
             },
             {
-              "d1": 15.54,
-              "code": "AS568-018",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 15.6,
+              "code": "AS568-016"
             },
             {
-              "d1": 17.12,
-              "code": "AS568-019",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 17.17,
+              "code": "AS568-017"
             },
             {
-              "d1": 18.72,
-              "code": "AS568-020",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 18.77,
+              "code": "AS568-018"
             },
             {
-              "d1": 20.3,
-              "code": "AS568-021",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 20.35,
+              "code": "AS568-019"
             },
             {
-              "d1": 21.89,
-              "code": "AS568-022",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 21.95,
+              "code": "AS568-020"
             },
             {
-              "d1": 23.47,
-              "code": "AS568-023",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 23.52,
+              "code": "AS568-021"
             },
             {
-              "d1": 25.07,
-              "code": "AS568-024",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 25.12,
+              "code": "AS568-022"
             },
             {
-              "d1": 26.57,
-              "code": "AS568-025",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 26.7,
+              "code": "AS568-023"
+            },
+            {
+              "d1": 28.3,
+              "code": "AS568-024"
+            },
+            {
+              "d1": 29.87,
+              "code": "AS568-025"
+            },
+            {
+              "d1": 31.47,
+              "code": "AS568-026"
+            },
+            {
+              "d1": 33.05,
+              "code": "AS568-027"
+            },
+            {
+              "d1": 34.65,
+              "code": "AS568-028"
+            },
+            {
+              "d1": 37.82,
+              "code": "AS568-029"
+            },
+            {
+              "d1": 41.0,
+              "code": "AS568-030"
+            },
+            {
+              "d1": 44.17,
+              "code": "AS568-031"
+            },
+            {
+              "d1": 50.52,
+              "code": "AS568-033"
+            },
+            {
+              "d1": 56.87,
+              "code": "AS568-035"
+            },
+            {
+              "d1": 63.22,
+              "code": "AS568-037"
+            },
+            {
+              "d1": 69.57,
+              "code": "AS568-039"
+            },
+            {
+              "d1": 75.92,
+              "code": "AS568-041"
+            },
+            {
+              "d1": 82.27,
+              "code": "AS568-042"
+            },
+            {
+              "d1": 88.62,
+              "code": "AS568-043"
+            },
+            {
+              "d1": 94.97,
+              "code": "AS568-044"
+            },
+            {
+              "d1": 101.32,
+              "code": "AS568-045"
+            },
+            {
+              "d1": 107.67,
+              "code": "AS568-046"
+            },
+            {
+              "d1": 114.02,
+              "code": "AS568-047"
+            },
+            {
+              "d1": 120.37,
+              "code": "AS568-048"
+            },
+            {
+              "d1": 126.72,
+              "code": "AS568-049"
+            },
+            {
+              "d1": 133.07,
+              "code": "AS568-050"
             }
           ]
         },
@@ -3441,458 +3354,251 @@
             "ecart_sup": 0.09,
             "ecart_inf": -0.09
           },
-          "description": "Série 100 (d2=0.103\")",
+          "description": "AS 568 — série A100, tore 2.62 mm",
           "joints": [
             {
-              "d1": 2.9,
-              "code": "AS568-102",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 2.06,
+              "code": "AS568-103"
             },
             {
-              "d1": 3.68,
-              "code": "AS568-103",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 2.84,
+              "code": "AS568-104"
             },
             {
-              "d1": 4.47,
-              "code": "AS568-104",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 4.42,
+              "code": "AS568-106"
             },
             {
-              "d1": 5.28,
-              "code": "AS568-105",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 7.59,
+              "code": "AS568-109"
             },
             {
-              "d1": 6.07,
-              "code": "AS568-106",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 9.19,
+              "code": "AS568-110"
             },
             {
-              "d1": 6.86,
-              "code": "AS568-107",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 10.77,
+              "code": "AS568-111"
             },
             {
-              "d1": 7.65,
-              "code": "AS568-108",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 12.37,
+              "code": "AS568-112"
             },
             {
-              "d1": 9.25,
-              "code": "AS568-109",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 13.94,
+              "code": "AS568-113"
             },
             {
-              "d1": 10.82,
-              "code": "AS568-110",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 15.54,
+              "code": "AS568-114"
             },
             {
-              "d1": 12.42,
-              "code": "AS568-111",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 17.12,
+              "code": "AS568-115"
             },
             {
-              "d1": 14.0,
-              "code": "AS568-112",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 18.72,
+              "code": "AS568-116"
             },
             {
-              "d1": 15.6,
-              "code": "AS568-113",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 20.29,
+              "code": "AS568-117"
             },
             {
-              "d1": 17.17,
-              "code": "AS568-114",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 21.89,
+              "code": "AS568-118"
             },
             {
-              "d1": 18.77,
-              "code": "AS568-115",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 23.47,
+              "code": "AS568-119"
             },
             {
-              "d1": 20.35,
-              "code": "AS568-116",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 25.07,
+              "code": "AS568-120"
             },
             {
-              "d1": 21.95,
-              "code": "AS568-117",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 26.64,
+              "code": "AS568-121"
             },
             {
-              "d1": 23.52,
-              "code": "AS568-118",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 28.24,
+              "code": "AS568-122"
             },
             {
-              "d1": 25.12,
-              "code": "AS568-119",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 29.82,
+              "code": "AS568-123"
             },
             {
-              "d1": 26.7,
-              "code": "AS568-120",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 31.42,
+              "code": "AS568-124"
             },
             {
-              "d1": 28.3,
-              "code": "AS568-121",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 32.99,
+              "code": "AS568-125"
             },
             {
-              "d1": 29.87,
-              "code": "AS568-122",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 34.59,
+              "code": "AS568-126"
             },
             {
-              "d1": 31.47,
-              "code": "AS568-123",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 36.17,
+              "code": "AS568-127"
             },
             {
-              "d1": 33.05,
-              "code": "AS568-124",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 37.77,
+              "code": "AS568-128"
             },
             {
-              "d1": 34.65,
-              "code": "AS568-125",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 39.34,
+              "code": "AS568-129"
             },
             {
-              "d1": 37.82,
-              "code": "AS568-126",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
-            },
-            {
-              "d1": 40.94,
-              "code": "AS568-127",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 42.52,
+              "code": "AS568-131"
             },
             {
               "d1": 44.12,
-              "code": "AS568-128",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "code": "AS568-132"
+            },
+            {
+              "d1": 45.69,
+              "code": "AS568-133"
             },
             {
               "d1": 47.29,
-              "code": "AS568-129",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "code": "AS568-134"
+            },
+            {
+              "d1": 48.9,
+              "code": "AS568-135"
             },
             {
               "d1": 50.47,
-              "code": "AS568-130",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "code": "AS568-136"
+            },
+            {
+              "d1": 52.07,
+              "code": "AS568-137"
             },
             {
               "d1": 53.64,
-              "code": "AS568-131",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "code": "AS568-138"
+            },
+            {
+              "d1": 55.25,
+              "code": "AS568-139"
             },
             {
               "d1": 56.82,
-              "code": "AS568-132",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "code": "AS568-140"
+            },
+            {
+              "d1": 58.42,
+              "code": "AS568-141"
             },
             {
               "d1": 59.99,
-              "code": "AS568-133",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "code": "AS568-142"
+            },
+            {
+              "d1": 61.6,
+              "code": "AS568-143"
             },
             {
               "d1": 63.17,
-              "code": "AS568-134",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-144"
+            },
+            {
+              "d1": 64.77,
+              "code": "AS568-145"
             },
             {
               "d1": 66.34,
-              "code": "AS568-135",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-146"
+            },
+            {
+              "d1": 67.95,
+              "code": "AS568-147"
             },
             {
               "d1": 69.52,
-              "code": "AS568-136",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-148"
+            },
+            {
+              "d1": 71.12,
+              "code": "AS568-149"
             },
             {
               "d1": 72.69,
-              "code": "AS568-137",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-150"
             },
             {
               "d1": 75.87,
-              "code": "AS568-138",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-151"
             },
             {
               "d1": 82.22,
-              "code": "AS568-139",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-152"
             },
             {
               "d1": 88.57,
-              "code": "AS568-140",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-153"
             },
             {
               "d1": 94.92,
-              "code": "AS568-141",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-154"
             },
             {
               "d1": 101.27,
-              "code": "AS568-142",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "code": "AS568-155"
+            },
+            {
+              "d1": 107.62,
+              "code": "AS568-156"
+            },
+            {
+              "d1": 113.97,
+              "code": "AS568-157"
+            },
+            {
+              "d1": 120.32,
+              "code": "AS568-158"
+            },
+            {
+              "d1": 126.67,
+              "code": "AS568-159"
+            },
+            {
+              "d1": 133.02,
+              "code": "AS568-160"
+            },
+            {
+              "d1": 139.37,
+              "code": "AS568-161"
+            },
+            {
+              "d1": 145.72,
+              "code": "AS568-162"
+            },
+            {
+              "d1": 152.07,
+              "code": "AS568-163"
+            },
+            {
+              "d1": 158.42,
+              "code": "AS568-164"
+            },
+            {
+              "d1": 164.77,
+              "code": "AS568-165"
+            },
+            {
+              "d1": 183.82,
+              "code": "AS568-168"
+            },
+            {
+              "d1": 234.62,
+              "code": "AS568-176"
             }
           ]
         },
@@ -3902,568 +3608,243 @@
             "ecart_sup": 0.1,
             "ecart_inf": -0.1
           },
-          "description": "Série 200 (d2=0.139\")",
+          "description": "AS 568 — série A200, tore 3.53 mm",
           "joints": [
             {
-              "d1": 6.07,
-              "code": "AS568-201",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 9.12,
+              "code": "AS568-204"
             },
             {
-              "d1": 7.65,
-              "code": "AS568-202",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 12.29,
+              "code": "AS568-206"
             },
             {
-              "d1": 9.25,
-              "code": "AS568-203",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 13.87,
+              "code": "AS568-207"
             },
             {
-              "d1": 10.82,
-              "code": "AS568-204",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 15.47,
+              "code": "AS568-208"
             },
             {
-              "d1": 12.42,
-              "code": "AS568-205",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 17.04,
+              "code": "AS568-209"
             },
             {
-              "d1": 14.0,
-              "code": "AS568-206",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 18.64,
+              "code": "AS568-210"
             },
             {
-              "d1": 15.6,
-              "code": "AS568-207",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 20.22,
+              "code": "AS568-211"
             },
             {
-              "d1": 17.17,
-              "code": "AS568-208",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 21.82,
+              "code": "AS568-212"
             },
             {
-              "d1": 18.77,
-              "code": "AS568-209",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 23.39,
+              "code": "AS568-213"
             },
             {
-              "d1": 20.35,
-              "code": "AS568-210",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 24.99,
+              "code": "AS568-214"
             },
             {
-              "d1": 21.95,
-              "code": "AS568-211",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 26.57,
+              "code": "AS568-215"
             },
             {
-              "d1": 23.52,
-              "code": "AS568-212",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 28.17,
+              "code": "AS568-216"
             },
             {
-              "d1": 25.12,
-              "code": "AS568-213",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 29.74,
+              "code": "AS568-217"
             },
             {
-              "d1": 26.7,
-              "code": "AS568-214",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 31.34,
+              "code": "AS568-218"
             },
             {
-              "d1": 28.3,
-              "code": "AS568-215",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 32.92,
+              "code": "AS568-219"
             },
             {
-              "d1": 29.87,
-              "code": "AS568-216",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 34.52,
+              "code": "AS568-220"
             },
             {
-              "d1": 31.47,
-              "code": "AS568-217",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 36.09,
+              "code": "AS568-221"
             },
             {
-              "d1": 33.05,
-              "code": "AS568-218",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 37.69,
+              "code": "AS568-222"
             },
             {
-              "d1": 34.65,
-              "code": "AS568-219",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 40.87,
+              "code": "AS568-223"
             },
             {
-              "d1": 37.82,
-              "code": "AS568-220",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 47.22,
+              "code": "AS568-225"
             },
             {
-              "d1": 40.94,
-              "code": "AS568-221",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 53.57,
+              "code": "AS568-227"
             },
             {
-              "d1": 44.12,
-              "code": "AS568-222",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 59.92,
+              "code": "AS568-229"
             },
             {
-              "d1": 47.29,
-              "code": "AS568-223",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 66.27,
+              "code": "AS568-231"
             },
             {
-              "d1": 50.47,
-              "code": "AS568-224",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 72.62,
+              "code": "AS568-233"
             },
             {
-              "d1": 53.64,
-              "code": "AS568-225",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 75.79,
+              "code": "AS568-234"
             },
             {
-              "d1": 56.82,
-              "code": "AS568-226",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 78.97,
+              "code": "AS568-235"
             },
             {
-              "d1": 59.99,
-              "code": "AS568-227",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 85.32,
+              "code": "AS568-237"
             },
             {
-              "d1": 63.17,
-              "code": "AS568-228",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 91.67,
+              "code": "AS568-239"
             },
             {
-              "d1": 66.34,
-              "code": "AS568-229",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 98.02,
+              "code": "AS568-241"
             },
             {
-              "d1": 69.52,
-              "code": "AS568-230",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 104.37,
+              "code": "AS568-243"
             },
             {
-              "d1": 72.69,
-              "code": "AS568-231",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 110.72,
+              "code": "AS568-245"
             },
             {
-              "d1": 75.87,
-              "code": "AS568-232",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 117.07,
+              "code": "AS568-247"
             },
             {
-              "d1": 82.22,
-              "code": "AS568-233",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 123.42,
+              "code": "AS568-249"
             },
             {
-              "d1": 88.57,
-              "code": "AS568-234",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 126.6,
+              "code": "AS568-250"
             },
             {
-              "d1": 94.92,
-              "code": "AS568-235",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 129.77,
+              "code": "AS568-251"
             },
             {
-              "d1": 101.27,
-              "code": "AS568-236",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 132.94,
+              "code": "AS568-252"
             },
             {
-              "d1": 107.62,
-              "code": "AS568-237",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 136.12,
+              "code": "AS568-253"
             },
             {
-              "d1": 113.97,
-              "code": "AS568-238",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 139.3,
+              "code": "AS568-254"
             },
             {
-              "d1": 120.32,
-              "code": "AS568-239",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 142.47,
+              "code": "AS568-255"
             },
             {
-              "d1": 126.67,
-              "code": "AS568-240",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 145.64,
+              "code": "AS568-256"
             },
             {
-              "d1": 133.02,
-              "code": "AS568-241",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 148.82,
+              "code": "AS568-257"
             },
             {
-              "d1": 139.37,
-              "code": "AS568-242",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 158.34,
+              "code": "AS568-259"
             },
             {
-              "d1": 145.72,
-              "code": "AS568-243",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 183.74,
+              "code": "AS568-263"
             },
             {
-              "d1": 152.07,
-              "code": "AS568-244",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 202.8,
+              "code": "AS568-266"
             },
             {
-              "d1": 158.42,
-              "code": "AS568-245",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 209.14,
+              "code": "AS568-267"
             },
             {
-              "d1": 164.77,
-              "code": "AS568-246",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 215.49,
+              "code": "AS568-268"
             },
             {
-              "d1": 177.47,
-              "code": "AS568-247",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 221.84,
+              "code": "AS568-269"
             },
             {
-              "d1": 190.17,
-              "code": "AS568-248",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 228.19,
+              "code": "AS568-270"
             },
             {
-              "d1": 202.87,
-              "code": "AS568-249",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 234.54,
+              "code": "AS568-271"
             },
             {
-              "d1": 215.57,
-              "code": "AS568-250",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 247.24,
+              "code": "AS568-273"
             },
             {
-              "d1": 228.27,
-              "code": "AS568-251",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 253.59,
+              "code": "AS568-274"
+            },
+            {
+              "d1": 266.29,
+              "code": "AS568-275"
+            },
+            {
+              "d1": 278.99,
+              "code": "AS568-276"
+            },
+            {
+              "d1": 291.69,
+              "code": "AS568-277"
+            },
+            {
+              "d1": 304.39,
+              "code": "AS568-278"
+            },
+            {
+              "d1": 329.79,
+              "code": "AS568-279"
+            },
+            {
+              "d1": 355.19,
+              "code": "AS568-280"
+            },
+            {
+              "d1": 405.26,
+              "code": "AS568-282"
+            },
+            {
+              "d1": 430.66,
+              "code": "AS568-283"
             }
           ]
         },
@@ -4473,447 +3854,207 @@
             "ecart_sup": 0.13,
             "ecart_inf": -0.13
           },
-          "description": "Série 300 (d2=0.210\")",
+          "description": "AS 568 — série A300, tore 5.33 mm",
           "joints": [
             {
-              "d1": 22.4,
-              "code": "AS568-309",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.1
-                }
-              ]
+              "d1": 21.59,
+              "code": "AS568-316"
             },
             {
-              "d1": 25.58,
-              "code": "AS568-310",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 23.16,
+              "code": "AS568-317"
             },
             {
-              "d1": 28.75,
-              "code": "AS568-311",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 34.29,
+              "code": "AS568-324"
             },
             {
-              "d1": 31.93,
-              "code": "AS568-312",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 37.47,
+              "code": "AS568-325"
             },
             {
-              "d1": 35.1,
-              "code": "AS568-313",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 40.64,
+              "code": "AS568-326"
             },
             {
-              "d1": 38.28,
-              "code": "AS568-314",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 43.82,
+              "code": "AS568-327"
             },
             {
-              "d1": 41.45,
-              "code": "AS568-315",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 46.99,
+              "code": "AS568-328"
             },
             {
-              "d1": 44.63,
-              "code": "AS568-316",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 50.17,
+              "code": "AS568-329"
             },
             {
-              "d1": 47.8,
-              "code": "AS568-317",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 53.34,
+              "code": "AS568-330"
             },
             {
-              "d1": 50.98,
-              "code": "AS568-318",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 56.52,
+              "code": "AS568-331"
             },
             {
-              "d1": 54.15,
-              "code": "AS568-319",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 59.69,
+              "code": "AS568-332"
             },
             {
-              "d1": 57.33,
-              "code": "AS568-320",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 62.87,
+              "code": "AS568-333"
             },
             {
-              "d1": 60.5,
-              "code": "AS568-321",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.13
-                }
-              ]
+              "d1": 66.04,
+              "code": "AS568-334"
             },
             {
-              "d1": 63.68,
-              "code": "AS568-322",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 69.22,
+              "code": "AS568-335"
             },
             {
-              "d1": 66.85,
-              "code": "AS568-323",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 72.39,
+              "code": "AS568-336"
             },
             {
-              "d1": 70.03,
-              "code": "AS568-324",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 75.57,
+              "code": "AS568-337"
             },
             {
-              "d1": 76.38,
-              "code": "AS568-325",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 78.74,
+              "code": "AS568-338"
             },
             {
-              "d1": 82.73,
-              "code": "AS568-326",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 81.92,
+              "code": "AS568-339"
             },
             {
-              "d1": 89.08,
-              "code": "AS568-327",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 85.09,
+              "code": "AS568-340"
             },
             {
-              "d1": 95.43,
-              "code": "AS568-328",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 88.27,
+              "code": "AS568-341"
             },
             {
-              "d1": 101.78,
-              "code": "AS568-329",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 91.44,
+              "code": "AS568-342"
             },
             {
-              "d1": 108.13,
-              "code": "AS568-330",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 94.62,
+              "code": "AS568-343"
             },
             {
-              "d1": 114.48,
-              "code": "AS568-331",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 97.79,
+              "code": "AS568-344"
             },
             {
-              "d1": 120.83,
-              "code": "AS568-332",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 100.97,
+              "code": "AS568-345"
             },
             {
-              "d1": 127.18,
-              "code": "AS568-333",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 104.14,
+              "code": "AS568-346"
             },
             {
-              "d1": 133.53,
-              "code": "AS568-334",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 107.32,
+              "code": "AS568-347"
             },
             {
-              "d1": 139.88,
-              "code": "AS568-335",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 110.49,
+              "code": "AS568-348"
             },
             {
-              "d1": 146.23,
-              "code": "AS568-336",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 113.67,
+              "code": "AS568-349"
             },
             {
-              "d1": 152.58,
-              "code": "AS568-337",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 126.37,
+              "code": "AS568-353"
             },
             {
-              "d1": 158.93,
-              "code": "AS568-338",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 129.54,
+              "code": "AS568-354"
             },
             {
-              "d1": 165.28,
-              "code": "AS568-339",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 132.72,
+              "code": "AS568-355"
             },
             {
-              "d1": 171.63,
-              "code": "AS568-340",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 142.24,
+              "code": "AS568-358"
             },
             {
-              "d1": 177.98,
-              "code": "AS568-341",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 148.59,
+              "code": "AS568-360"
             },
             {
-              "d1": 184.33,
-              "code": "AS568-342",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 158.12,
+              "code": "AS568-362"
             },
             {
-              "d1": 190.68,
-              "code": "AS568-343",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 164.47,
+              "code": "AS568-363"
             },
             {
-              "d1": 203.38,
-              "code": "AS568-344",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 170.82,
+              "code": "AS568-364"
             },
             {
-              "d1": 216.08,
-              "code": "AS568-345",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 177.17,
+              "code": "AS568-365"
             },
             {
-              "d1": 228.78,
-              "code": "AS568-346",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 196.22,
+              "code": "AS568-368"
             },
             {
-              "d1": 241.48,
-              "code": "AS568-347",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 202.57,
+              "code": "AS568-369"
             },
             {
-              "d1": 254.18,
-              "code": "AS568-348",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 215.27,
+              "code": "AS568-371"
+            },
+            {
+              "d1": 221.62,
+              "code": "AS568-372"
+            },
+            {
+              "d1": 227.97,
+              "code": "AS568-373"
+            },
+            {
+              "d1": 234.32,
+              "code": "AS568-374"
+            },
+            {
+              "d1": 240.67,
+              "code": "AS568-375"
+            },
+            {
+              "d1": 278.77,
+              "code": "AS568-379"
+            },
+            {
+              "d1": 291.47,
+              "code": "AS568-380"
+            },
+            {
+              "d1": 329.57,
+              "code": "AS568-382"
+            },
+            {
+              "d1": 380.37,
+              "code": "AS568-384"
+            },
+            {
+              "d1": 405.26,
+              "code": "AS568-385"
+            },
+            {
+              "d1": 582.68,
+              "code": "AS568-392"
             }
           ]
         },
@@ -4923,271 +4064,676 @@
             "ecart_sup": 0.15,
             "ecart_inf": -0.15
           },
-          "description": "Série 400 (d2=0.275\")",
+          "description": "AS 568 — série A400, tore 6.99 mm",
           "joints": [
             {
-              "d1": 107.37,
-              "code": "AS568-425",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 113.67,
+              "code": "AS568-425"
             },
             {
-              "d1": 114.42,
-              "code": "AS568-426",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 116.84,
+              "code": "AS568-426"
             },
             {
-              "d1": 120.77,
-              "code": "AS568-427",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 120.02,
+              "code": "AS568-427"
             },
             {
-              "d1": 127.12,
-              "code": "AS568-428",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 123.19,
+              "code": "AS568-428"
             },
             {
-              "d1": 133.47,
-              "code": "AS568-429",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 126.37,
+              "code": "AS568-429"
             },
             {
-              "d1": 139.82,
-              "code": "AS568-430",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 129.54,
+              "code": "AS568-430"
             },
             {
-              "d1": 146.17,
-              "code": "AS568-431",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 132.72,
+              "code": "AS568-431"
             },
             {
-              "d1": 152.52,
-              "code": "AS568-432",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 135.89,
+              "code": "AS568-432"
             },
             {
-              "d1": 158.87,
-              "code": "AS568-433",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.18
-                }
-              ]
+              "d1": 139.07,
+              "code": "AS568-433"
             },
             {
-              "d1": 165.22,
-              "code": "AS568-434",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 142.24,
+              "code": "AS568-434"
             },
             {
-              "d1": 171.57,
-              "code": "AS568-435",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 145.42,
+              "code": "AS568-435"
             },
             {
-              "d1": 177.92,
-              "code": "AS568-436",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 148.59,
+              "code": "AS568-436"
             },
             {
-              "d1": 184.27,
-              "code": "AS568-437",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 151.77,
+              "code": "AS568-437"
             },
             {
-              "d1": 190.62,
-              "code": "AS568-438",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 158.12,
+              "code": "AS568-438"
             },
             {
-              "d1": 203.32,
-              "code": "AS568-439",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 164.47,
+              "code": "AS568-439"
             },
             {
-              "d1": 216.02,
-              "code": "AS568-440",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 170.82,
+              "code": "AS568-440"
             },
             {
-              "d1": 228.72,
-              "code": "AS568-441",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 177.17,
+              "code": "AS568-441"
             },
             {
-              "d1": 241.42,
-              "code": "AS568-442",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 183.52,
+              "code": "AS568-442"
             },
             {
-              "d1": 254.12,
-              "code": "AS568-443",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 189.87,
+              "code": "AS568-443"
             },
             {
-              "d1": 266.82,
-              "code": "AS568-444",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 196.22,
+              "code": "AS568-444"
             },
             {
-              "d1": 279.52,
-              "code": "AS568-445",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 202.57,
+              "code": "AS568-445"
             },
             {
-              "d1": 304.92,
-              "code": "AS568-446",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 215.27,
+              "code": "AS568-446"
             },
             {
-              "d1": 330.32,
-              "code": "AS568-447",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 227.97,
+              "code": "AS568-447"
             },
             {
-              "d1": 355.6,
-              "code": "AS568-448",
-              "tol_d1": [
-                {
-                  "qualite": "h10",
-                  "ecart_sup": 0,
-                  "ecart_inf": -0.23
-                }
-              ]
+              "d1": 240.67,
+              "code": "AS568-448"
+            },
+            {
+              "d1": 253.37,
+              "code": "AS568-449"
+            },
+            {
+              "d1": 266.07,
+              "code": "AS568-450"
+            },
+            {
+              "d1": 278.77,
+              "code": "AS568-451"
+            },
+            {
+              "d1": 291.47,
+              "code": "AS568-452"
+            },
+            {
+              "d1": 304.17,
+              "code": "AS568-453"
+            },
+            {
+              "d1": 316.87,
+              "code": "AS568-454"
+            },
+            {
+              "d1": 329.57,
+              "code": "AS568-455"
+            },
+            {
+              "d1": 342.27,
+              "code": "AS568-456"
+            },
+            {
+              "d1": 354.97,
+              "code": "AS568-457"
+            },
+            {
+              "d1": 367.67,
+              "code": "AS568-458"
+            },
+            {
+              "d1": 380.37,
+              "code": "AS568-459"
+            },
+            {
+              "d1": 393.07,
+              "code": "AS568-460"
+            },
+            {
+              "d1": 430.66,
+              "code": "AS568-463"
+            },
+            {
+              "d1": 532.26,
+              "code": "AS568-470"
+            },
+            {
+              "d1": 557.66,
+              "code": "AS568-471"
+            },
+            {
+              "d1": 582.68,
+              "code": "AS568-472"
+            },
+            {
+              "d1": 608.08,
+              "code": "AS568-473"
+            }
+          ]
+        }
+      }
+    },
+    "LJF_R": {
+      "nom_complet": "Série R (Bague R) — dimensionnel Le Joint Français",
+      "origine": "Le Joint Français / Hutchinson — catalogue 2024, liste dimensionnelle p. 72-130",
+      "description": "Dimensionnel commercial francais historique, largement diffuse en France et en Europe. Ce n'est PAS une norme ISO/DIN : le code Rxx designe une taille predefinie, pas une cote. Sections caracteristiques 1,90 / 2,70 / 3,60 mm, absentes des series ISO et AS 568. A partir de R28 les references coincident avec BS 1806 / AS 568.",
+      "provenance": {
+        "niveau": "prouve",
+        "cotes": "Catalogue Le Joint Francais 2024, references Rxx",
+        "verification": "105 references relevees directement dans le catalogue. Apporte les sections 1,90 / 2,70 / 3,60 mm, absentes des autres normes du fichier.",
+        "date": "2026-09-11"
+      },
+      "series": {
+        "R1": {
+          "d2_nominal": 1.0,
+          "description": "Bague R — tore 1.00 mm",
+          "joints": [
+            {
+              "d1": 1.15,
+              "code": "R000"
+            }
+          ]
+        },
+        "R1.6": {
+          "d2_nominal": 1.6,
+          "description": "Bague R — tore 1.60 mm",
+          "joints": [
+            {
+              "d1": 2.2,
+              "code": "R00"
+            },
+            {
+              "d1": 2.75,
+              "code": "R1 BIS"
+            }
+          ]
+        },
+        "R1.78": {
+          "d2_nominal": 1.78,
+          "description": "Bague R — tore 1.78 mm",
+          "joints": [
+            {
+              "d1": 6.35,
+              "code": "R5 BIS"
+            },
+            {
+              "d1": 9.52,
+              "code": "R8 BIS"
+            }
+          ]
+        },
+        "R1.9": {
+          "d2_nominal": 1.9,
+          "description": "Bague R — tore 1.90 mm",
+          "joints": [
+            {
+              "d1": 2.4,
+              "code": "R0"
+            },
+            {
+              "d1": 2.6,
+              "code": "R1"
+            },
+            {
+              "d1": 3.4,
+              "code": "R2"
+            },
+            {
+              "d1": 4.2,
+              "code": "R3"
+            },
+            {
+              "d1": 4.9,
+              "code": "R4"
+            },
+            {
+              "d1": 5.7,
+              "code": "R5"
+            },
+            {
+              "d1": 6.4,
+              "code": "R5 A"
+            },
+            {
+              "d1": 7.2,
+              "code": "R6"
+            },
+            {
+              "d1": 8.0,
+              "code": "R6 A"
+            },
+            {
+              "d1": 8.9,
+              "code": "R7"
+            },
+            {
+              "d1": 16.0,
+              "code": "R12 BIS"
+            }
+          ]
+        },
+        "R2.2": {
+          "d2_nominal": 2.2,
+          "description": "Bague R — tore 2.20 mm",
+          "joints": [
+            {
+              "d1": 6.0,
+              "code": "R6 BIS"
+            },
+            {
+              "d1": 9.0,
+              "code": "R7 BIS"
+            }
+          ]
+        },
+        "R2.4": {
+          "d2_nominal": 2.4,
+          "description": "Bague R — tore 2.40 mm",
+          "joints": [
+            {
+              "d1": 25.0,
+              "code": "R19 BIS"
+            }
+          ]
+        },
+        "R2.55": {
+          "d2_nominal": 2.55,
+          "description": "Bague R — tore 2.55 mm",
+          "joints": [
+            {
+              "d1": 29.1,
+              "code": "R20 BIS"
+            }
+          ]
+        },
+        "R2.7": {
+          "d2_nominal": 2.7,
+          "description": "Bague R — tore 2.70 mm",
+          "joints": [
+            {
+              "d1": 8.9,
+              "code": "R8"
+            },
+            {
+              "d1": 10.5,
+              "code": "R9"
+            },
+            {
+              "d1": 12.1,
+              "code": "R10"
+            },
+            {
+              "d1": 13.6,
+              "code": "R11"
+            },
+            {
+              "d1": 15.1,
+              "code": "R12"
+            },
+            {
+              "d1": 16.9,
+              "code": "R13"
+            },
+            {
+              "d1": 18.4,
+              "code": "R14"
+            },
+            {
+              "d1": 27.3,
+              "code": "R20 TER"
+            }
+          ]
+        },
+        "R3.6": {
+          "d2_nominal": 3.6,
+          "description": "Bague R — tore 3.60 mm",
+          "joints": [
+            {
+              "d1": 18.3,
+              "code": "R15"
+            },
+            {
+              "d1": 19.8,
+              "code": "R16"
+            },
+            {
+              "d1": 21.3,
+              "code": "R17"
+            },
+            {
+              "d1": 23.0,
+              "code": "R18"
+            },
+            {
+              "d1": 24.6,
+              "code": "R19"
+            },
+            {
+              "d1": 26.2,
+              "code": "R20"
+            },
+            {
+              "d1": 27.8,
+              "code": "R21"
+            },
+            {
+              "d1": 29.3,
+              "code": "R22"
+            },
+            {
+              "d1": 30.8,
+              "code": "R23"
+            },
+            {
+              "d1": 32.5,
+              "code": "R24"
+            },
+            {
+              "d1": 34.1,
+              "code": "R25"
+            },
+            {
+              "d1": 35.6,
+              "code": "R26"
+            },
+            {
+              "d1": 37.3,
+              "code": "R27"
+            },
+            {
+              "d1": 43.4,
+              "code": "R29 TER"
+            }
+          ]
+        },
+        "R5.3": {
+          "d2_nominal": 5.3,
+          "description": "Bague R — tore 5.30 mm",
+          "joints": [
+            {
+              "d1": 41.4,
+              "code": "R29 BIS"
+            },
+            {
+              "d1": 54.4,
+              "code": "R33 BIS"
+            }
+          ]
+        },
+        "R5.33": {
+          "d2_nominal": 5.33,
+          "description": "Bague R — tore 5.33 mm",
+          "joints": [
+            {
+              "d1": 37.47,
+              "code": "R28"
+            },
+            {
+              "d1": 40.64,
+              "code": "R29"
+            },
+            {
+              "d1": 43.82,
+              "code": "R30"
+            },
+            {
+              "d1": 46.99,
+              "code": "R31"
+            },
+            {
+              "d1": 50.17,
+              "code": "R32"
+            },
+            {
+              "d1": 53.34,
+              "code": "R33"
+            },
+            {
+              "d1": 56.52,
+              "code": "R34"
+            },
+            {
+              "d1": 59.69,
+              "code": "R35"
+            },
+            {
+              "d1": 62.87,
+              "code": "R36"
+            },
+            {
+              "d1": 66.04,
+              "code": "R37"
+            },
+            {
+              "d1": 69.22,
+              "code": "R38"
+            },
+            {
+              "d1": 72.39,
+              "code": "R39"
+            },
+            {
+              "d1": 75.57,
+              "code": "R40"
+            },
+            {
+              "d1": 78.74,
+              "code": "R41"
+            },
+            {
+              "d1": 81.92,
+              "code": "R42"
+            },
+            {
+              "d1": 85.09,
+              "code": "R43"
+            },
+            {
+              "d1": 88.27,
+              "code": "R44"
+            },
+            {
+              "d1": 91.44,
+              "code": "R45"
+            },
+            {
+              "d1": 94.62,
+              "code": "R46"
+            },
+            {
+              "d1": 97.79,
+              "code": "R47"
+            },
+            {
+              "d1": 100.97,
+              "code": "R48"
+            },
+            {
+              "d1": 104.14,
+              "code": "R49"
+            },
+            {
+              "d1": 107.32,
+              "code": "R50"
+            },
+            {
+              "d1": 110.49,
+              "code": "R51"
+            },
+            {
+              "d1": 113.67,
+              "code": "R52"
+            }
+          ]
+        },
+        "R6.99": {
+          "d2_nominal": 6.99,
+          "description": "Bague R — tore 6.99 mm",
+          "joints": [
+            {
+              "d1": 113.67,
+              "code": "R53"
+            },
+            {
+              "d1": 116.84,
+              "code": "R54"
+            },
+            {
+              "d1": 120.02,
+              "code": "R55"
+            },
+            {
+              "d1": 123.19,
+              "code": "R56"
+            },
+            {
+              "d1": 126.37,
+              "code": "R57"
+            },
+            {
+              "d1": 129.54,
+              "code": "R58"
+            },
+            {
+              "d1": 132.72,
+              "code": "R59"
+            },
+            {
+              "d1": 135.89,
+              "code": "R60"
+            },
+            {
+              "d1": 139.07,
+              "code": "R61"
+            },
+            {
+              "d1": 142.24,
+              "code": "R62"
+            },
+            {
+              "d1": 145.42,
+              "code": "R63"
+            },
+            {
+              "d1": 148.59,
+              "code": "R64"
+            },
+            {
+              "d1": 151.77,
+              "code": "R65"
+            },
+            {
+              "d1": 158.12,
+              "code": "R66"
+            },
+            {
+              "d1": 164.47,
+              "code": "R67"
+            },
+            {
+              "d1": 170.82,
+              "code": "R68"
+            },
+            {
+              "d1": 177.17,
+              "code": "R69"
+            },
+            {
+              "d1": 183.52,
+              "code": "R70"
+            },
+            {
+              "d1": 189.87,
+              "code": "R71"
+            },
+            {
+              "d1": 196.22,
+              "code": "R72"
+            },
+            {
+              "d1": 202.57,
+              "code": "R73"
+            },
+            {
+              "d1": 215.27,
+              "code": "R74"
+            },
+            {
+              "d1": 227.97,
+              "code": "R75"
+            },
+            {
+              "d1": 240.67,
+              "code": "R76"
+            },
+            {
+              "d1": 253.37,
+              "code": "R77"
+            },
+            {
+              "d1": 266.07,
+              "code": "R78"
+            },
+            {
+              "d1": 278.77,
+              "code": "R79"
+            },
+            {
+              "d1": 291.47,
+              "code": "R80"
+            },
+            {
+              "d1": 304.17,
+              "code": "R81"
+            },
+            {
+              "d1": 316.87,
+              "code": "R82"
+            },
+            {
+              "d1": 329.57,
+              "code": "R83"
+            },
+            {
+              "d1": 342.27,
+              "code": "R84"
+            },
+            {
+              "d1": 354.97,
+              "code": "R85"
+            },
+            {
+              "d1": 367.67,
+              "code": "R86"
+            },
+            {
+              "d1": 380.37,
+              "code": "R87"
+            },
+            {
+              "d1": 393.07,
+              "code": "R88"
             }
           ]
         }

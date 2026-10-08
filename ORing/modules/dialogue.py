@@ -88,6 +88,7 @@ except ImportError:
         QTableWidgetItem = _Stub
         QHeaderView    = _Stub
     class QtCore:
+        QTimer = _Stub
         class Qt:
             AlignCenter    = 0
             AlignLeft      = 0
@@ -99,6 +100,29 @@ except ImportError:
         QColor = _Stub
 
 from .i18n import tr
+
+
+# =============================================================================
+# BRUIT DE DIAGNOSTIC — désactivable (audit UX, point 2.6)
+# =============================================================================
+# Ce module contient environ 165 print() de traçage ("[ORing DIAG]",
+# "[ORing TNP]", "[ORing lies]", "[ORing modif]", ...), historiquement
+# utiles pour déboguer les opérations FreeCAD complexes (topologie, TNP,
+# mise à jour des joints liés) mais qui s'affichaient aussi en usage normal,
+# noyant les avertissements/erreurs FreeCAD légitimes dans le Report View.
+#
+# Plutôt que de retirer ~165 appels un par un (risque d'erreur élevé sans
+# pouvoir tester dans FreeCAD), print() est redéfini localement à ce module :
+# les lignes "ERREUR"/"AVERT" restent toujours visibles, le reste est
+# silencieux par défaut et réactivable via la variable d'environnement
+# ORING_DEBUG=1 (ou en modifiant ORING_DEBUG ci-dessous).
+# 13/09/2026 : la copie inline du masquage a été remplacée par un import de
+# `oring_debug.py`, qui portait déjà la même définition. Deux copies du même
+# filtre, c'est la divergence que `mecanismes_partages.md` s'emploie à
+# prévenir — et elle se serait matérialisée le jour même, le vocabulaire du
+# filtre ayant dû être élargi (quinze avertissements réels qu'il laissait
+# tomber).
+from .oring_debug import print  # noqa: A004 — masquage partagé, voir oring_debug.py
 
 
 def _nom_mat(m: dict) -> str:
@@ -117,7 +141,21 @@ from .joints    import liste_series, liste_d2, get_plage_squeeze, choisir_d1
 from .utils     import (lister_bodies, lister_lcs, lister_parametres_body,
                         lister_bodies_valides_gorge, lister_bodies_valides_comp,
                         doc_a_bodies_valides,
-                        message_erreur, message_info, get_document_actif)
+                        message_erreur, message_info, get_document_actif,
+                        resoudre_arete_selectionnee, trouver_parametre_pour_edge,
+                        nommer_parametre, nom_lcs_disponible, creer_lcs_sur_arete,
+                        ajuster_offset_lcs, basculer_transparence_body,
+                        basculer_transparence_document,
+                        capturer_aspect_corps, restaurer_aspect_corps,
+                        reappliquer_transparence_document,
+                        restaurer_transparence_document,
+                        neutraliser_override_materiau,
+                        afficher_lcs_en_surimpression,
+                        restaurer_affichage_lcs,
+                        rendre_visible_sketch_et_surligner,
+                        restaurer_visibilite_sketches,
+                        resoudre_body_depuis_objet,
+                        )
 
 
 # =============================================================================
@@ -347,7 +385,16 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
 
         self.combo_param = QtWidgets.QComboBox()
         self.combo_param.addItem(tr("— select —"), None)
-        layout.addRow(tr("Parameter Ø:"), self.combo_param)
+        row_param = QtWidgets.QHBoxLayout()
+        row_param.addWidget(self.combo_param, 1)
+        self.btn_detect_arete = QtWidgets.QPushButton(tr("🎯 3D selection"))
+        self.btn_detect_arete.setToolTip(tr(
+            "Select a circular edge in the 3D view, then click here\n"
+            "to detect and select its Ø/radius parameter automatically."
+        ))
+        self.btn_detect_arete.clicked.connect(self._on_detecter_parametre_depuis_arete)
+        row_param.addWidget(self.btn_detect_arete)
+        layout.addRow(tr("Parameter Ø:"), row_param)
 
         self.radio_diametre = QtWidgets.QRadioButton(tr("Diameter"))
         self.radio_rayon    = QtWidgets.QRadioButton(tr("Radius"))
@@ -486,6 +533,15 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
                     )
                 else:
                     self.label_valeur.setText(f"Ø {val:.2f} mm")
+                # Resynchronise le texte affiché du combo (ex.
+                # "RArbre1  (20.450 mm)") sur la valeur réellement
+                # stockée dans le document — annule toute prévisualisation
+                # laissée par le dialogue (cf. _maj_valeur_lue_principale /
+                # _maj_valeur_lue_complementaire) une fois qu'on quitte le
+                # mode modification ou qu'on change de sélection.
+                idx = self.combo_param.currentIndex()
+                if idx >= 0:
+                    self.combo_param.setItemText(idx, f"{nom}  ({val:.3f} mm)")
                 return
         self.label_valeur.setText("—")
 
@@ -503,6 +559,26 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
     def get_body(self):
         return self.combo_body.currentData()
 
+    def assurer_body_present(self, body):
+        """
+        S'assure que body figure dans ce combo et le selectionne, meme
+        s'il ne remplit pas les criteres habituels de la liste initiale
+        (ex. corps "vierge" sans LCS libre ni parametre nomme) -- utilise
+        quand une arete pre-selectionnee avant le lancement de la macro
+        designe un corps qui n'a pas encore ete prepare (spec
+        claude/spec_oring_guide_creation_lcs_edge.md §3.4bis, 03/09/2026,
+        demande utilisateur). Ajoute l'entree si absente ; le changement
+        de selection declenche normalement _on_body_change() (pas de
+        blockSignals ici, contrairement a set_bodies() -- on veut bien
+        le rafraichissement de combo_param qui en decoule).
+        """
+        for i in range(self.combo_body.count()):
+            if self.combo_body.itemData(i) is body:
+                self.combo_body.setCurrentIndex(i)
+                return
+        self.combo_body.addItem(body.Label, body)
+        self.combo_body.setCurrentIndex(self.combo_body.count() - 1)
+
     def get_nom_parametre(self):
         return self.combo_param.currentData()
 
@@ -512,6 +588,141 @@ class WidgetSelectBody(QtWidgets.QGroupBox):
     def est_complete(self):
         return (self.combo_body.currentData() is not None
                 and self.combo_param.currentData() is not None)
+
+    # ------------------------------------------------------------------
+    # Détection par arête sélectionnée (spec claude/spec_oring_guide_creation_lcs_edge.md
+    # §3.2/3.3/3.5, chantier « guide de création », 02/09/2026) — raccourci
+    # additif : le flux manuel ci-dessus (combo_body/combo_param) reste la
+    # référence, jamais un prérequis. Aucune erreur possible ne bloque —
+    # repli silencieux sur le flux manuel dans tous les cas d'échec.
+    # ------------------------------------------------------------------
+
+    def _selectionner_param_dans_combo(self, nom: str) -> bool:
+        """Sélectionne l'entrée nom dans combo_param si elle existe. True si trouvée."""
+        for i in range(self.combo_param.count()):
+            if self.combo_param.itemData(i) == nom:
+                self.combo_param.setCurrentIndex(i)
+                return True
+        return False
+
+    def _on_detecter_parametre_depuis_arete(self):
+        """Bouton « 3D selection » : masque le dialogue, attend un clic
+        sur une arête circulaire en vue 3D, puis détecte le paramètre
+        Ø/rayon associé (voir _attendre_selection_3d — le dialogue étant
+        modal, la vue 3D n'est interactive que pendant ce masquage
+        temporaire)."""
+        if not FREECAD_DISPONIBLE:
+            return
+        body = self.combo_body.currentData()
+        if body is None:
+            QtWidgets.QMessageBox.warning(
+                self, tr("3D selection"), tr("Select a Body above first."))
+            return
+        _attendre_selection_3d(
+            self,
+            tr("Click a circular edge in the 3D view.\n"
+               "The dialog will reappear automatically."),
+            lambda arete_info: self._traiter_selection_arete_detectee(body, arete_info))
+
+    def _traiter_selection_arete_detectee(self, body, arete_info=None):
+        """Suite de _on_detecter_parametre_depuis_arete() une fois le
+        dialogue réaffiché après le clic (ou l'annulation) en vue 3D.
+        arete_info optionnel (objet_proprietaire, nom_edge, edge) : si
+        fourni (cas d'une arête pré-sélectionnée avant le lancement de la
+        macro, voir DialogueORing._demarrer_depuis_arete_preselectionnee()),
+        utilisé directement plutôt que relu depuis la sélection 3D
+        courante -- même principe que
+        DialogueORing._traiter_creation_lcs_depuis_arete()."""
+        if arete_info is None:
+            arete_info = resoudre_arete_selectionnee()
+        if arete_info is None:
+            QtWidgets.QMessageBox.warning(
+                self, tr("3D selection"),
+                tr("No circular edge was selected.\n"
+                   "Click the button again to retry."))
+            return
+
+        resultat = trouver_parametre_pour_edge(body, arete_info)
+        statut = resultat.get('statut')
+
+        if statut == 'nomme':
+            self._selectionner_param_dans_combo(resultat['nom'])
+            rendre_visible_sketch_et_surligner(
+                resultat.get('sketch'), resultat.get('idx_geo'))
+
+        elif statut == 'sans_nom':
+            self._proposer_nommage(resultat, body)
+
+        elif statut == 'geometrie_sans_contrainte':
+            rendre_visible_sketch_et_surligner(
+                resultat.get('sketch'), resultat.get('idx_geo'))
+            QtWidgets.QMessageBox.information(
+                self, tr("3D selection"),
+                tr("A matching geometry was found, but no radius/diameter\n"
+                   "constraint drives it — nothing to select automatically.\n"
+                   "Use the list above if you need one.\n"
+                   "Tip: name a Radius/Diameter constraint (or, for a revolution, a\n"
+                   "named Distance/DistanceX/DistanceY from the axis) on this geometry\n"
+                   "so it can be auto-detected next time."))
+
+        elif statut == 'primitive':
+            QtWidgets.QMessageBox.information(
+                self, tr("3D selection"),
+                tr("Match found on a Sketch-less primitive (value: "
+                   "{val:.3f} mm) — it cannot be named automatically.\n"
+                   "Use the list above if you need a named parameter.",
+                   val=resultat.get('valeur_mm', 0.0)))
+
+        elif statut == 'ambigu':
+            QtWidgets.QMessageBox.warning(
+                self, tr("3D selection"),
+                tr("Several possible matches were found — automatic\n"
+                   "selection is not possible. Use the list above."))
+
+        else:  # 'aucun'
+            QtWidgets.QMessageBox.warning(
+                self, tr("3D selection"),
+                tr("No match found for this edge.\nUse the list above.\n"
+                   "Tip: automatic detection is reliable when the radius/diameter\n"
+                   "is driven by a NAMED Radius/Diameter constraint (or, for a\n"
+                   "revolution, a named Distance/DistanceX/DistanceY from the axis)."))
+
+    def _proposer_nommage(self, resultat: dict, body) -> None:
+        """Cas 'sans_nom' : nom pré-rempli mais éditable, jamais de
+        renommage silencieux (spec point C)."""
+        nom_propose = resultat.get('nom_propose', '')
+        nom_valide, ok = QtWidgets.QInputDialog.getText(
+            self, tr("Name this parameter"),
+            tr("A Ø/radius constraint was found but is not named yet.\n"
+               "Enter a name (used elsewhere in this Body):"),
+            QtWidgets.QLineEdit.Normal, nom_propose)
+        if not ok:
+            return  # annulé — rien n'est écrit
+        nom_valide = nom_valide.strip()
+        if not nom_valide:
+            QtWidgets.QMessageBox.warning(
+                self, tr("Name this parameter"), tr("Name cannot be empty."))
+            return
+        if nom_valide in lister_parametres_body(body):
+            QtWidgets.QMessageBox.warning(
+                self, tr("Name this parameter"),
+                tr("'{name}' is already used by another parameter in "
+                   "this Body — pick a different name.", name=nom_valide))
+            return
+
+        sketch = resultat.get('sketch')
+        idx_contrainte = resultat.get('idx_contrainte')
+        if not nommer_parametre(sketch, idx_contrainte, nom_valide):
+            QtWidgets.QMessageBox.warning(
+                self, tr("Name this parameter"),
+                tr("Could not rename this constraint — see console for details."))
+            return
+
+        rendre_visible_sketch_et_surligner(sketch, resultat.get('idx_geo'))
+        # Rafraîchir combo_param (le nouveau nom est désormais renvoyé par
+        # lister_parametres_body) et sélectionner l'entrée créée
+        self._on_body_change(0)
+        self._selectionner_param_dans_combo(nom_valide)
 
 
 # =============================================================================
@@ -537,6 +748,553 @@ def _lcs_deja_utilises(doc) -> set:
         return set()
 
 
+class _SelectionObserverPonctuel:
+    """
+    Observateur de sélection FreeCAD à usage unique : appelle le
+    callback fourni dès qu'un objet est ajouté à la sélection en vue
+    3D, puis se désinstalle lui-même (voir _attendre_selection_3d()).
+    """
+
+    def __init__(self, callback):
+        self._callback = callback
+
+    def addSelection(self, doc, obj, sub, pnt):
+        try:
+            Gui.Selection.removeObserver(self)
+        except Exception:
+            pass
+        self._callback()
+
+
+class _FenetreAttenteSelection3D(QtWidgets.QWidget):
+    """
+    Petite fenêtre flottante non modale affichée pendant qu'on attend
+    un clic dans la vue 3D — le dialogue ORing principal est masqué
+    le temps de l'attente (voir _attendre_selection_3d()) pour lui
+    rendre la main.
+    """
+
+    def __init__(self, message, on_annuler, parent=None):
+        super().__init__(
+            parent, QtCore.Qt.Tool | QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowTitle(tr("3D selection"))
+        self._on_annuler = on_annuler
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        lbl = QtWidgets.QLabel(message)
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+
+        btn_annuler = QtWidgets.QPushButton(tr("Cancel"))
+        btn_annuler.clicked.connect(self._on_clic_annuler)
+        layout.addWidget(btn_annuler)
+
+    def _on_clic_annuler(self):
+        if self._on_annuler is not None:
+            self._on_annuler()
+
+    def closeEvent(self, event):
+        # Fermeture via la croix de la fenêtre = équivalent d'une
+        # annulation (idempotent : _attendre_selection_3d() se protège
+        # elle-même contre un double appel).
+        if self._on_annuler is not None:
+            self._on_annuler()
+        event.accept()
+
+
+def _attendre_selection_3d(widget_appelant, message, callback_suite):
+    """
+    Masque temporairement le dialogue ORing (fenêtre top-level de
+    widget_appelant) pour permettre de cliquer une arête dans la vue
+    3D — la vue est bloquée tant que le dialogue est visible (QDialog
+    modal, voir dlg.exec_() dans lancer_dialogue()). Affiche une petite
+    fenêtre d'instruction/annulation pendant l'attente, réaffiche le
+    dialogue dès qu'un objet est sélectionné (ou que l'utilisateur
+    annule), puis appelle callback_suite() — sauf en cas d'annulation.
+
+    Ne fait rien si FreeCAD n'est pas disponible (mode test hors
+    FreeCAD) : callback_suite() n'est alors jamais appelé.
+    """
+    if not FREECAD_DISPONIBLE:
+        return
+
+    dlg = widget_appelant.window()
+    etat = {'observateur': None, 'fenetre': None, 'termine': False}
+
+    def _terminer(annule):
+        if etat['termine']:
+            return  # protection contre un double déclenchement
+        etat['termine'] = True
+        if etat['observateur'] is not None:
+            try:
+                Gui.Selection.removeObserver(etat['observateur'])
+            except Exception:
+                pass
+            etat['observateur'] = None
+        if etat['fenetre'] is not None:
+            etat['fenetre'].close()
+            etat['fenetre'] = None
+        # BUGFIX (03/09/2026, signalé par l'utilisateur) : résoudre
+        # l'arête cliquée ICI (une seule fois), puis vider la sélection
+        # immédiatement -- sinon elle reste affichée en surbrillance
+        # standard (hors thème PartDesign) après la réapparition du
+        # dialogue, même défaut déjà corrigé pour la pré-sélection avant
+        # lancement (lancer_dialogue(), spec point Q). callback_suite
+        # reçoit directement l'arête résolue plutôt que de la relire
+        # depuis Gui.Selection (désormais vidée).
+        arete_info = None
+        if not annule:
+            arete_info = resoudre_arete_selectionnee()
+        Gui.Selection.clearSelection()
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        if not annule:
+            callback_suite(arete_info)
+
+    fenetre = _FenetreAttenteSelection3D(
+        message, lambda: _terminer(True), parent=Gui.getMainWindow())
+    etat['fenetre'] = fenetre
+
+    observateur = _SelectionObserverPonctuel(lambda: _terminer(False))
+    etat['observateur'] = observateur
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addObserver(observateur)
+
+    dlg.hide()
+    fenetre.show()
+    fenetre.raise_()
+    fenetre.activateWindow()
+
+
+def _afficher_dialogue_non_modal_3d(widget_appelant, dlg):
+    """
+    Affiche dlg (QDialog deja construit et cable par l'appelant) en
+    mode non modal, avec la vue 3D FreeCAD interactive et rafraichie en
+    temps reel pendant qu'il reste ouvert.
+
+    Meme cause racine et meme principe que _attendre_selection_3d() :
+    le dialogue appelant (widget_appelant.window(), ouvert via exec_(),
+    donc ApplicationModal) bloque les paint events de toute la fenetre
+    principale FreeCAD -- y compris la vue 3D -- tant qu'il est visible,
+    meme masque par hide() plutot que ferme. Il est donc masque le temps
+    de l'operation ; dlg est affiche en survol (Qt.Tool |
+    WindowStaysOnTopHint) via show() (jamais exec_(), qui le rendrait a
+    nouveau modal), et une QEventLoop locale liee a son signal finished()
+    bloque l'execution du script jusqu'a sa fermeture -- sans bloquer la
+    vue 3D, contrairement a exec_(). Meme principe que
+    StandardPartSelector/insertion.py::_show_orientation_dialog().
+
+    Utilise par _traiter_creation_lcs_depuis_arete() pour l'apercu
+    temps reel de l'offset du LCS (spec
+    claude/spec_oring_guide_creation_lcs_edge.md, §3.4, point B).
+
+    Retourne dlg.result() (QDialog.Accepted / QDialog.Rejected).
+    """
+    if not FREECAD_DISPONIBLE:
+        return QtWidgets.QDialog.Rejected
+
+    dlg_appelant = widget_appelant.window()
+    etait_visible = bool(dlg_appelant.isVisible())
+    modalite_avant = None
+    if etait_visible:
+        dlg_appelant.hide()
+        # BUGFIX (05/09/2026, signale par l'utilisateur : "la vue 3D est
+        # totalement figee pendant l'assistant") : masquer le dialogue
+        # appelant ne suffit pas toujours a liberer la fenetre principale
+        # FreeCAD -- l'attribut WA_ShowModal pose par son exec_() reste
+        # actif. On sort donc explicitement de l'etat modal le temps de
+        # l'assistant, puis on le retablit avant de le reafficher.
+        try:
+            modalite_avant = (dlg_appelant.windowModality(),
+                              bool(dlg_appelant.testAttribute(
+                                  QtCore.Qt.WA_ShowModal)))
+            dlg_appelant.setAttribute(QtCore.Qt.WA_ShowModal, False)
+            dlg_appelant.setWindowModality(QtCore.Qt.NonModal)
+        except Exception:
+            modalite_avant = None
+
+    # Le sous-dialogue est rattache a la fenetre principale FreeCAD plutot
+    # qu'au dialogue ORing appelant (masque ci-dessus) : une fenetre
+    # Qt.Tool suit la visibilite de son parent, elle ne doit donc pas
+    # dependre d'un parent cache. Le lien logique vers le dialogue
+    # appelant reste assure par _DialogCreerLCSDepuisArete._parent_dialogue.
+    try:
+        dlg.setParent(Gui.getMainWindow(),
+                      QtCore.Qt.Tool | QtCore.Qt.WindowStaysOnTopHint)
+    except Exception:
+        dlg.setWindowFlags(
+            dlg.windowFlags() | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
+    try:
+        dlg.setWindowModality(QtCore.Qt.NonModal)
+    except Exception:
+        pass
+
+    boucle = QtCore.QEventLoop()
+    dlg.finished.connect(boucle.quit)
+    dlg.show()
+    dlg.raise_()
+    dlg.activateWindow()
+    boucle.exec_()
+
+    if modalite_avant is not None:
+        try:
+            dlg_appelant.setWindowModality(modalite_avant[0])
+            dlg_appelant.setAttribute(QtCore.Qt.WA_ShowModal, modalite_avant[1])
+        except Exception:
+            pass
+    if etait_visible:
+        dlg_appelant.show()
+        dlg_appelant.raise_()
+        dlg_appelant.activateWindow()
+    return dlg.result()
+
+
+class _DialogCreerLCSDepuisArete(QtWidgets.QDialog):
+    """
+    Assistant de création d'un LCS attaché à une arête circulaire
+    sélectionnée en vue 3D, avec aperçu temps réel de l'offset et
+    transparence temporaire du Body (spec claude/spec_oring_guide_creation_lcs_edge.md
+    §3.4, points A et B validés le 02/09/2026).
+
+    Le LCS est créé dès la construction du dialogue (offset = 0) pour
+    permettre l'aperçu temps réel ; il est supprimé si l'utilisateur annule
+    (ou si la création elle-même échoue — voir lcs_cree()).
+    """
+
+    # Delai de regroupement des mises a jour d'apercu (ms). Assez court pour
+    # rester percu comme immediat, assez long pour absorber une saisie au
+    # clavier.
+    _DELAI_APERCU_MS = 250
+
+    def __init__(self, body, objet_proprietaire, nom_edge, doc, parent=None,
+                 forcer_choix_explicite=False):
+        super().__init__(parent)
+        self.setWindowTitle(tr("Create LCS from edge"))
+        self._body = body
+        self._doc = doc
+        self._lcs = None
+        # AMELIORATION (05/09/2026) : snapshot de transparence de TOUS les
+        # corps visibles (et non plus du seul corps portant la gorge) +
+        # etat d'affichage du LCS mis en surimpression, restaures a la
+        # fermeture du dialogue quelle qu'en soit l'issue.
+        self._snapshot_transparence = {}
+        self._etat_lcs = {}
+        self._annulation_traitee = False
+        # BUGFIX (04/09/2026, signale par l'utilisateur) : quand True
+        # (flux 3.4bis, arete pre-selectionnee avant le lancement de la
+        # macro), aucun radio position n'est pre-coche et le bouton OK
+        # reste desactive tant que l'utilisateur n'a pas choisi
+        # explicitement -- evite qu'un defaut 'arbre' non remarque ne
+        # cree silencieusement un joint avec la mauvaise position (voir
+        # spec Sec.0, correctif du 04/09/2026).
+        self._forcer_choix_explicite = forcer_choix_explicite
+        # Reference explicite au dialogue appelant (DialogueORing), pour
+        # propager le choix de position ci-dessous vers combo_position
+        # (onglet 1) -- voir _on_accepter(). Equivalent a self.parent()
+        # ici (Qt), mais explicite est plus sur si un reparentage Qt
+        # interne devait un jour changer ce lien.
+        self._parent_dialogue = parent
+
+        layout = QtWidgets.QFormLayout(self)
+
+        self.champ_nom = QtWidgets.QLineEdit()
+        layout.addRow(tr("LCS name (required):"), self.champ_nom)
+        # Collision de nom signalee en direct sous le champ (plutot qu'au
+        # clic sur OK, desormais desactive dans ce cas) -- reprend la
+        # chaine deja traduite de _on_accepter(), aucune nouvelle cle i18n.
+        self.label_nom_erreur = QtWidgets.QLabel()
+        self.label_nom_erreur.setStyleSheet("color: #c0392b;")
+        self.label_nom_erreur.setWordWrap(True)
+        self.label_nom_erreur.setVisible(False)
+        layout.addRow("", self.label_nom_erreur)
+
+        # Position (gorge sur arbre / gorge dans alesage) -- ajout du
+        # 03/09/2026 (demande utilisateur) : évite d'avoir à repasser par
+        # l'onglet 1 (Contexte) pour corriger combo_position quand on
+        # démarre depuis une arête pré-sélectionnée (spec §3.4bis). Reprend
+        # les libellés déjà traduits de combo_position pour rester
+        # cohérent ; pré-coché sur la valeur courante de combo_position
+        # (ou "arbre" par défaut si le parent n'en a pas encore un).
+        self.radio_arbre = QtWidgets.QRadioButton(tr("Groove on shaft"))
+        self.radio_alesage = QtWidgets.QRadioButton(tr("Groove in bore"))
+        self._groupe_position = QtWidgets.QButtonGroup(self)
+        self._groupe_position.addButton(self.radio_arbre)
+        self._groupe_position.addButton(self.radio_alesage)
+        if self._forcer_choix_explicite:
+            # BUGFIX (04/09/2026) : aucun pre-coche -- combo_position du
+            # parent ne reflete ici que sa valeur par defaut ('arbre'),
+            # jamais un choix reellement fait par l'utilisateur pour ce
+            # joint (le dialogue vient d'etre instancie). Le bouton OK
+            # est desactive plus bas tant qu'aucun des deux n'est coche.
+            pass
+        else:
+            _position_initiale = 'arbre'
+            _combo_parent = getattr(parent, 'combo_position', None)
+            if _combo_parent is not None:
+                try:
+                    _position_initiale = _combo_parent.currentData() or 'arbre'
+                except Exception:
+                    _position_initiale = 'arbre'
+            if _position_initiale == 'alesage':
+                self.radio_alesage.setChecked(True)
+            else:
+                self.radio_arbre.setChecked(True)
+        _hl_position = QtWidgets.QHBoxLayout()
+        _hl_position.addWidget(self.radio_arbre)
+        _hl_position.addWidget(self.radio_alesage)
+        layout.addRow(tr("Groove position:"), _hl_position)
+
+        self.spin_offset = QtWidgets.QDoubleSpinBox()
+        self.spin_offset.setRange(-1000.0, 1000.0)
+        self.spin_offset.setDecimals(3)
+        self.spin_offset.setSuffix(" mm")
+        self.spin_offset.setSingleStep(0.5)
+        layout.addRow(tr("Offset along axis:"), self.spin_offset)
+
+        boutons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        boutons.accepted.connect(self._on_accepter)
+        boutons.rejected.connect(self._on_annuler)
+        layout.addRow(boutons)
+        # AMELIORATION (05/09/2026, demande utilisateur) : le bouton de
+        # validation reste desactive tant que TOUT l'obligatoire n'est pas
+        # renseigne -- le nom du LCS (nouveau) et, dans le flux 3.4bis, la
+        # position arbre/alesage (BUGFIX du 04/09/2026, conserve).
+        # Recalcule a chaque frappe et a chaque changement de radio.
+        self._bouton_ok = boutons.button(QtWidgets.QDialogButtonBox.Ok)
+        self.champ_nom.textChanged.connect(lambda _t: self._maj_bouton_ok())
+        self._groupe_position.buttonClicked.connect(
+            lambda _b: self._maj_bouton_ok())
+        self._maj_bouton_ok()
+
+        # Créé tout de suite (offset 0) pour l'aperçu temps réel — nom
+        # temporaire, renommé en Label final seulement à la validation.
+        nom_temp = self._nom_temporaire_unique()
+        try:
+            self._lcs = creer_lcs_sur_arete(body, objet_proprietaire, nom_edge, nom_temp, 0.0)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self, tr("Create LCS from edge"),
+                tr("Could not create the LCS: {err}", err=str(e)))
+            self._lcs = None
+            return
+
+        # AMELIORATION (05/09/2026, demande utilisateur) : tous les corps
+        # visibles du document passent en transparence (et non plus le seul
+        # corps portant la gorge a 60 %), et le LCS est dessine au-dessus
+        # de la geometrie -- etat limite a la duree du dialogue, restaure
+        # par _restaurer_affichage() a la validation comme a l'annulation.
+        self._snapshot_transparence = basculer_transparence_document(self._doc, 85)
+        self._etat_lcs = afficher_lcs_en_surimpression(self._lcs)
+
+        # AMELIORATION (10/09/2026) : regroupement des mises a jour d'apercu,
+        # motif porte de la macro Swaging. Taper une valeur au clavier emet un
+        # signal PAR CARACTERE ; sans regroupement, chaque frappe declenchait
+        # un recompute du document ET une re-application de la transparence
+        # sur TOUS les corps visibles. Une minuterie monocoup ne retient que
+        # le dernier etat saisi.
+        self._minuterie_offset = QtCore.QTimer(self)
+        self._minuterie_offset.setSingleShot(True)
+        self._minuterie_offset.setInterval(self._DELAI_APERCU_MS)
+        self._minuterie_offset.timeout.connect(self._appliquer_offset)
+        self._apercu_en_cours = False
+        self.spin_offset.valueChanged.connect(self._on_offset_change)
+
+    def _nom_temporaire_unique(self) -> str:
+        n = 0
+        while True:
+            candidat = f"_LCS_temp_{n}"
+            if nom_lcs_disponible(self._doc, candidat):
+                return candidat
+            n += 1
+
+    def _on_offset_change(self, _valeur):
+        """Signal du champ d'offset : ne fait que (re)armer la minuterie.
+
+        Le travail lui-meme est dans _appliquer_offset(), declenche une seule
+        fois quand la saisie se stabilise.
+        """
+        if self._lcs is not None:
+            self._minuterie_offset.start()
+
+    def _vider_minuterie_offset(self):
+        """Applique sans attendre un offset encore en attente.
+
+        Piege du regroupement : une valeur saisie puis validee immediatement
+        ne serait jamais appliquee au LCS, la minuterie mourant avec le
+        dialogue. Ce qui est conserve doit etre ce qui est affiche.
+        """
+        if self._minuterie_offset.isActive():
+            self._minuterie_offset.stop()
+            self._appliquer_offset()
+
+    def _appliquer_offset(self):
+        """Porte l'offset courant sur le LCS et rafraichit la vue 3D."""
+        if self._lcs is None or self._apercu_en_cours:
+            return
+        # processEvents() ci-dessous peut rendre la main a la boucle Qt et
+        # relancer ce traitement : un drapeau suffit a l'empecher.
+        self._apercu_en_cours = True
+        try:
+            ajuster_offset_lcs(self._lcs, self.spin_offset.value())
+            # CORRECTIF (06/09/2026, signalé par l'utilisateur) : le recompute
+            # déclenché ci-dessus reconstruit le rendu des Gui::ViewProviderLink
+            # de l'assemblage, qui perdent alors leur override de matériau — la
+            # transparence disparaissait dès le premier changement de position.
+            # On la ré-applique sans toucher au snapshot, pour que la
+            # restauration finale reste exacte.
+            try:
+                reappliquer_transparence_document(
+                    self._doc, self._snapshot_transparence, 85)
+            except Exception as _e_tr:
+                print(f"[ORing] ré-application transparence AVERT : {_e_tr}")
+            # AMELIORATION (03/09/2026, demande utilisateur) : forcer le
+            # repaint de la vue 3D -- ajuster_offset_lcs() appelle deja
+            # recompute(), mais cela ne suffit pas a rendre le
+            # deplacement visible immediatement ; meme principe que
+            # StandardPartSelector/insertion.py::_update_placement().
+            try:
+                QtWidgets.QApplication.processEvents()
+                Gui.updateGui()
+            except Exception:
+                pass
+        finally:
+            self._apercu_en_cours = False
+
+    def _maj_bouton_ok(self):
+        """
+        Active le bouton de validation seulement quand tout l'obligatoire
+        est renseigne (demande utilisateur du 05/09/2026) : un nom de LCS
+        non vide ET encore disponible dans le document, plus -- dans le
+        seul flux ou elle n'est pas pre-cochee (forcer_choix_explicite,
+        spec 3.4bis) -- une position arbre/alesage explicitement choisie.
+        """
+        nom = self.champ_nom.text().strip()
+        try:
+            nom_libre = bool(nom) and nom_lcs_disponible(self._doc, nom)
+        except Exception:
+            nom_libre = bool(nom)
+        if nom and not nom_libre:
+            self.label_nom_erreur.setText(tr(
+                "'{name}' is already used by another object in this "
+                "document — pick a different name.", name=nom))
+            self.label_nom_erreur.setVisible(True)
+        else:
+            self.label_nom_erreur.setVisible(False)
+        position_ok = (not self._forcer_choix_explicite
+                       or self.radio_arbre.isChecked()
+                       or self.radio_alesage.isChecked())
+        try:
+            self._bouton_ok.setEnabled(bool(nom_libre and position_ok))
+        except Exception:
+            pass
+
+    def _restaurer_affichage(self):
+        """
+        Restaure l'aspect d'origine du document (transparence de tous les
+        corps + affichage du LCS), quelle que soit l'issue du dialogue.
+        Idempotent : les snapshots sont vides apres restauration.
+        """
+        restaurer_transparence_document(self._doc, self._snapshot_transparence)
+        self._snapshot_transparence = {}
+        # La restauration repose l'etat capture au depart -- y compris un
+        # OverrideMaterial deja a True avant l'ouverture de l'assistant, qui
+        # aplatirait tout le composant, joints compris.
+        try:
+            neutraliser_override_materiau(self._doc)
+        except Exception as _e_ov:
+            print(f"[ORing couleurs] neutralisation AVERT : {_e_ov}")
+        if self._etat_lcs:
+            restaurer_affichage_lcs(self._lcs, self._etat_lcs)
+            self._etat_lcs = {}
+
+    def _on_annuler(self):
+        # BUGFIX (05/09/2026) : le nettoyage d'annulation passe desormais
+        # par reject(), donc il couvre aussi la croix de fermeture et la
+        # touche Echap -- qui ne passaient pas par le bouton Cancel et
+        # laissaient la transparence appliquee et un LCS temporaire
+        # orphelin dans le document.
+        if not self._annulation_traitee:
+            self._annulation_traitee = True
+            # Le LCS temporaire va etre supprime : appliquer un offset en
+            # attente serait du travail perdu.
+            self._minuterie_offset.stop()
+            self._restaurer_affichage()
+            if self._lcs is not None:
+                try:
+                    self._doc.removeObject(self._lcs.Name)
+                    self._doc.recompute()
+                except Exception:
+                    pass
+                self._lcs = None
+        super().reject()
+
+    def reject(self):
+        """Toute annulation (bouton Cancel, croix, Echap) passe ici."""
+        self._on_annuler()
+
+    def _on_accepter(self):
+        # Avant toute chose : porter sur le LCS un offset encore en attente,
+        # sinon la derniere valeur saisie serait perdue (voir
+        # _vider_minuterie_offset).
+        self._vider_minuterie_offset()
+        if (self._forcer_choix_explicite
+                and not self.radio_arbre.isChecked()
+                and not self.radio_alesage.isChecked()):
+            # Filet de securite (ne devrait pas se produire : le bouton
+            # OK est desactive tant qu'aucun des deux n'est coche).
+            QtWidgets.QMessageBox.warning(
+                self, tr("Create LCS from edge"),
+                tr("Choose the groove position (shaft or bore) before "
+                   "continuing."))
+            return
+        nom_valide = self.champ_nom.text().strip()
+        if not nom_valide:
+            QtWidgets.QMessageBox.warning(
+                self, tr("Create LCS from edge"),
+                tr("Enter a name for the new LCS."))
+            return
+        if not nom_lcs_disponible(self._doc, nom_valide):
+            QtWidgets.QMessageBox.warning(
+                self, tr("Create LCS from edge"),
+                tr("'{name}' is already used by another object in this "
+                   "document — pick a different name.", name=nom_valide))
+            return
+        self._restaurer_affichage()
+        try:
+            self._lcs.Label = nom_valide
+            self._doc.recompute()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self, tr("Create LCS from edge"),
+                tr("Could not rename the LCS: {err}", err=str(e)))
+            return
+        # Propager la position choisie ci-dessus vers combo_position
+        # (onglet 1), pour que le reste du flux (calculs, sketches,
+        # métadonnées -- tous lisent self.combo_position.currentData())
+        # utilise la bonne valeur sans que l'utilisateur ait eu besoin d'y
+        # retourner manuellement.
+        _combo_parent = getattr(self._parent_dialogue, 'combo_position', None)
+        if _combo_parent is not None:
+            _position_choisie = 'alesage' if self.radio_alesage.isChecked() else 'arbre'
+            try:
+                for _i in range(_combo_parent.count()):
+                    if _combo_parent.itemData(_i) == _position_choisie:
+                        if _combo_parent.currentIndex() != _i:
+                            _combo_parent.setCurrentIndex(_i)
+                        break
+            except Exception:
+                pass  # non bloquant -- la création du LCS elle-même a déjà réussi
+        self.accept()
+
+    def lcs_cree(self):
+        """None si la création (ou le renommage final) a échoué ou a été annulée."""
+        return self._lcs
+
+
 # =============================================================================
 # HIGHLIGHT BODY ORING AU SURVOL DU TABLEAU
 # =============================================================================
@@ -549,46 +1307,181 @@ _visual_snapshot = {}
 _hover_saved = {}
 
 
+def _cle_visuelle(obj):
+    """
+    Clé d'état visuel : (nom du document, Name de l'objet).
+
+    Le Name n'est unique que dans SON document. Les corps ORing de deux
+    composants liés s'appellent tous les deux « ORing » — mesuré le
+    06/09/2026 : `alesage#ORing` et `Arbre#ORing`. Une clé réduite au Name
+    les confondait, et la restauration reposait sur l'un la couleur de
+    l'autre. Même règle que metadata.apparier_objet() pour l'identité des
+    objets entre documents.
+    """
+    return (getattr(getattr(obj, 'Document', None), 'Name', ''),
+            getattr(obj, 'Name', ''))
+
+
+def _objet_de_cle(cle):
+    """Retrouve un objet depuis sa clé (document, Name). None si disparu."""
+    try:
+        doc = App.getDocument(cle[0])
+    except Exception:
+        return None
+    if doc is None:
+        return None
+    try:
+        return doc.getObject(cle[1])
+    except Exception:
+        return None
+
+
+def _bodies_visuels(doc):
+    """
+    Corps susceptibles d'être teintés par le survol : ceux du périmètre
+    (document actif ET documents sources atteints par ses liens) plus les
+    corps ORing, qui vivent un niveau plus bas — dans le App::Part du joint,
+    lui-même dans le conteneur « ... équipé ».
+
+    Un balayage de `doc.Objects` n'en voyait aucun dans un assemblage
+    multi-fichiers : c'est l'origine du jaune de survol jamais retiré.
+    """
+    resultat = []
+    vus = set()
+
+    def _ajouter(obj):
+        if obj is None or getattr(obj, 'TypeId', '') != 'PartDesign::Body':
+            return
+        cle = _cle_visuelle(obj)
+        if cle in vus:
+            return
+        vus.add(cle)
+        resultat.append(obj)
+
+    try:
+        for b in lister_bodies(doc):
+            _ajouter(b)
+    except Exception:
+        try:
+            for obj in doc.Objects:
+                _ajouter(obj)
+        except Exception:
+            pass
+    try:
+        from .metadata import lister_parts_oring
+        for part in lister_parts_oring(doc):
+            for enfant in getattr(part, 'Group', []):
+                _ajouter(enfant)
+    except Exception:
+        pass
+    return resultat
+
+
 def _prendre_snapshot(doc):
-    """Sauvegarde l'état visuel de tous les bodies du document."""
+    """Sauvegarde l'état visuel des corps du périmètre au lancement."""
     _visual_snapshot.clear()
     if doc is None:
         return
     try:
-        for obj in doc.Objects:
-            if obj.TypeId == 'PartDesign::Body':
-                try:
-                    vo = obj.ViewObject
-                    _visual_snapshot[obj.Name] = {
-                        'ShapeColor':   tuple(getattr(vo, 'ShapeColor',   (0.8, 0.8, 0.8))),
-                        'Transparency': int(getattr(vo, 'Transparency', 0)),
-                    }
-                except Exception:
-                    pass
+        for obj in _bodies_visuels(doc):
+            try:
+                vo = obj.ViewObject
+                _visual_snapshot[_cle_visuelle(obj)] = {
+                    'ShapeColor':   tuple(getattr(vo, 'ShapeColor',   (0.8, 0.8, 0.8))),
+                    'Transparency': int(getattr(vo, 'Transparency', 0)),
+                }
+            except Exception:
+                pass
     except Exception as e:
         print(f"[ORing snapshot] {e}")
 
 
-def _restaurer_snapshot(doc):
-    """Restaure exactement l'état visuel capturé au lancement.
-    Les bodies créés APRÈS le snapshot (nouveaux joints) sont aussi remis
-    à Transparency=0 pour éviter les transparences résiduelles du hover.
+def _garantir_snapshot(obj):
+    """
+    Enregistre l'état de `obj` AVANT que le survol ne le modifie, s'il n'est
+    pas déjà connu du snapshot de lancement — cas d'un joint créé pendant la
+    session. Sans ce filet, un objet teinté n'avait aucun état de référence
+    et restait jaune.
+    """
+    cle = _cle_visuelle(obj)
+    if cle in _visual_snapshot:
+        return
+    try:
+        vo = obj.ViewObject
+        _visual_snapshot[cle] = {
+            'ShapeColor':   tuple(getattr(vo, 'ShapeColor',   (0.8, 0.8, 0.8))),
+            'Transparency': int(getattr(vo, 'Transparency', 0)),
+        }
+    except Exception:
+        pass
+
+
+def _reposer_etat(obj, saved) -> None:
+    """
+    Repose couleur et transparence sur `obj`, SANS ecrire ce qui n'a pas
+    change : une ecriture inutile marque le document comme modifie, et
+    l'utilisateur se verrait proposer d'enregistrer un fichier composant
+    auquel personne n'a touche.
+    """
+    if obj is None or not saved:
+        return
+    try:
+        vo = obj.ViewObject
+    except Exception:
+        return
+    if vo is None:
+        return
+    try:
+        couleur = saved.get('ShapeColor')
+        if couleur is not None and tuple(getattr(vo, 'ShapeColor', ())) != tuple(couleur):
+            vo.ShapeColor = couleur
+    except Exception:
+        pass
+    try:
+        transp = saved.get('Transparency')
+        if transp is not None and int(getattr(vo, 'Transparency', 0)) != int(transp):
+            vo.Transparency = int(transp)
+    except Exception:
+        pass
+
+
+def _hover_restaurer_touches() -> None:
+    """
+    Remet en etat les seuls objets teintes par le survol PRECEDENT.
+
+    Appelee au debut de _hover_appliquer() : passer d'une ligne a l'autre
+    depeint la precedente. Sans cela, le jaune s'accumulait de ligne en ligne
+    -- deux joints jaunes simultanement dans la trace du 06/09/2026 --, car
+    _appliquer_ligne() enchaine les appels sans restauration intermediaire.
+    """
+    for cle in list(_hover_saved.keys()):
+        _reposer_etat(_objet_de_cle(cle), _visual_snapshot.get(cle))
+    _hover_saved.clear()
+
+
+def _restaurer_etats_visuels(doc):
+    """
+    Remet chaque objet du snapshot dans son état d'origine.
+
+    Parcourt le SNAPSHOT et résout chaque objet par sa clé (document, Name),
+    au lieu de balayer le document actif : ce qui a été peint est donc
+    toujours dépeint, quel que soit le fichier où il vit. Le balayage de
+    `doc.Objects` ne touchait que l'assemblage — dans un montage
+    multi-fichiers, il n'y trouvait aucun corps.
+
+    Les corps apparus depuis le snapshot (nouveaux joints) sont simplement
+    remis opaques, sans toucher à leur couleur.
     """
     if doc is None:
         return
     try:
-        for obj in doc.Objects:
-            if obj.TypeId != 'PartDesign::Body':
+        for cle, saved in list(_visual_snapshot.items()):
+            _reposer_etat(_objet_de_cle(cle), saved)
+        for obj in _bodies_visuels(doc):
+            if _cle_visuelle(obj) in _visual_snapshot:
                 continue
             try:
-                vo   = obj.ViewObject
-                saved = _visual_snapshot.get(obj.Name)
-                if saved:
-                    vo.ShapeColor   = saved['ShapeColor']
-                    vo.Transparency = saved['Transparency']
-                else:
-                    # Body créé après le snapshot → remettre opaque sans changer la couleur
-                    vo.Transparency = 0
+                obj.ViewObject.Transparency = 0
             except Exception:
                 pass
         _hover_saved.clear()
@@ -596,78 +1489,81 @@ def _restaurer_snapshot(doc):
         print(f"[ORing snapshot restaurer] {e}")
 
 
+def _restaurer_snapshot(doc):
+    """Restaure l'état visuel capturé au lancement (voir
+    _restaurer_etats_visuels)."""
+    _restaurer_etats_visuels(doc)
+
+
 def _hover_appliquer(part, doc):
     """
     Survol d'une ligne du tableau :
-    - Body ORing : couleur jaune vif, opaque, DrawStyle Solid
-    - Autres bodies du doc : mis à 80 % de transparence (effet "premier plan")
+    - Body ORing : couleur jaune vif, opaque ;
+    - autres corps visibles du périmètre : 80 % de transparence (effet
+      « premier plan »).
+
+    Tout objet touché est d'abord enregistré par _garantir_snapshot(), de
+    sorte que _hover_retirer() puisse toujours le remettre en état — y
+    compris lorsqu'il vit dans un document source.
     """
     if part is None or doc is None:
         return
     try:
         import FreeCADGui as Gui
-        # Trouver le body ORing dans le Part
+        # Depeindre d'abord ce que le survol precedent avait teinte : sinon le
+        # jaune s'accumule de ligne en ligne (_appliquer_ligne enchaine les
+        # appels sans restauration intermediaire).
+        _hover_restaurer_touches()
         body_oring = None
         for child in getattr(part, 'Group', []):
-            if child.TypeId == 'PartDesign::Body' and child.Label.startswith('ORing'):
+            if (getattr(child, 'TypeId', '') == 'PartDesign::Body'
+                    and getattr(child, 'Label', '').startswith('ORing')):
                 body_oring = child
                 break
         if body_oring is None:
             return
 
-        # Mettre en transparence tous les autres bodies visibles
-        for obj in doc.Objects:
-            if (obj.TypeId == 'PartDesign::Body'
-                    and obj is not body_oring
-                    and getattr(obj, 'Visibility', False)):
-                try:
-                    vo = obj.ViewObject
-                    _hover_saved[obj.Name] = {
-                        'Transparency': getattr(vo, 'Transparency', 0),
-                    }
-                    vo.Transparency = 80
-                except Exception:
-                    pass
+        for obj in _bodies_visuels(doc):
+            if obj is body_oring or not getattr(obj, 'Visibility', False):
+                continue
+            try:
+                _garantir_snapshot(obj)
+                vo = obj.ViewObject
+                _hover_saved[_cle_visuelle(obj)] = {
+                    'Transparency': getattr(vo, 'Transparency', 0),
+                }
+                vo.Transparency = 80
+            except Exception:
+                pass
 
-        # Highlight du body ORing
+        _garantir_snapshot(body_oring)
         vo_o = body_oring.ViewObject
-        _hover_saved[body_oring.Name] = {
+        _hover_saved[_cle_visuelle(body_oring)] = {
             'ShapeColor':   getattr(vo_o, 'ShapeColor',   (0.8, 0.8, 0.8)),
             'Transparency': getattr(vo_o, 'Transparency', 0),
         }
         vo_o.ShapeColor   = (1.0, 0.85, 0.0)   # jaune vif
         vo_o.Transparency = 0                    # opaque
-        # Sélection dans la vue 3D
         Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(doc.Name, body_oring.Name)
+        # Adressage a travers les liens (13/09/2026). Ce site trompait :
+        # la TEINTE jaune ci-dessus traverse le lien, la selection non -- le
+        # survol paraissait donc fonctionner a moitie sans qu'on sache pourquoi.
+        from .utils import selectionner as _selectionner
+        _selectionner(body_oring, doc)
     except Exception as e:
         print(f"[ORing hover] appliquer : {e}")
 
 
 def _hover_retirer(doc):
-    """
-    Fin de survol : restaure l'état visuel depuis le snapshot de lancement.
-    """
+    """Fin de survol : restaure l'état visuel de tout ce qui a été teinté."""
     if doc is None:
         return
     try:
         import FreeCADGui as Gui
-        # Restaurer depuis le snapshot (source de vérité)
-        # Les bodies absents du snapshot (créés pendant la session) → Transparency=0
-        for obj in doc.Objects:
-            if obj.TypeId != 'PartDesign::Body':
-                continue
-            try:
-                vo    = obj.ViewObject
-                saved = _visual_snapshot.get(obj.Name)
-                if saved:
-                    vo.ShapeColor   = saved['ShapeColor']
-                    vo.Transparency = saved['Transparency']
-                else:
-                    vo.Transparency = 0
-            except Exception:
-                pass
-        _hover_saved.clear()
+        # Cible : ce que le survol a teinte. Repasser sur tout le perimetre
+        # reecrirait la couleur de corps auxquels on n'a jamais touche, donc
+        # marquerait leurs documents comme modifies sans raison.
+        _hover_restaurer_touches()
         Gui.Selection.clearSelection()
     except Exception as e:
         print(f"[ORing hover] retirer : {e}")
@@ -682,8 +1578,21 @@ def _retirer_highlight_body_oring(part, doc):   pass
 class _TableJointsHover(QtWidgets.QTableWidget):
     """
     QTableWidget avec highlight hover :
-    - mouseMoveEvent : highlight de la ligne sous le curseur
-    - leaveEvent     : restaure toutes les propriétés
+    - mouseMoveEvent : highlight (couleur 3D) de la ligne sous le curseur —
+      y compris quand une ligne est verrouillée (sélectionnée) : le survol
+      d'une AUTRE ligne bascule temporairement le highlight 3D dessus.
+    - leaveEvent     : à la sortie du tableau (ou quand le curseur quitte
+      toute ligne), le highlight revient sur la ligne verrouillée si elle
+      existe, sinon état neutre (snapshot de lancement).
+
+    Comportement (débogage 2026-08-26, demande utilisateur) :
+      1. Le joint sélectionné (ligne verrouillée) reste en surbrillance
+         dans le tableau ET dans la vue 3D en permanence.
+      2. Survoler une autre ligne bascule le highlight 3D sur le joint
+         survolé (la ligne verrouillée reste sélectionnée dans le tableau,
+         seule la couleur 3D change temporairement).
+      3. En sortant du tableau (ou en quittant toute ligne), le highlight 3D
+         revient sur le joint verrouillé (ou disparaît s'il n'y en a pas).
     """
 
     def __init__(self, *args, **kwargs):
@@ -693,68 +1602,91 @@ class _TableJointsHover(QtWidgets.QTableWidget):
         self._locked_row   = -1       # ligne verrouillée par clic (-1 = aucune)
         self._hover_doc    = None     # document FreeCAD courant (injecté par dialogue)
         self._hover_parts  = []       # liste ordonnée des Parts (index = ligne)
+        self._callback_nouvelle_ligne = None  # injecté par dialogue : callable(row)
+
+    def _appliquer_ligne(self, row):
+        """Applique le highlight 3D pour la ligne `row` (no-op si hors bornes)."""
+        if 0 <= row < len(self._hover_parts):
+            _hover_appliquer(self._hover_parts[row], self._hover_doc)
+
+    def _restaurer_etat_base(self):
+        """
+        Restaure l'état de highlight 'de base' du tableau : celui de la
+        ligne verrouillée (sélection persistante) si elle existe, sinon
+        l'état neutre (snapshot de lancement). Appelé chaque fois que le
+        survol se termine (sortie de ligne, sortie du tableau).
+        """
+        if self._locked_row >= 0:
+            self._appliquer_ligne(self._locked_row)
+        else:
+            _hover_retirer(self._hover_doc)
 
     def mouseMoveEvent(self, event):
-        # Si une ligne est verrouillée par clic, le hover est suspendu
-        if self._locked_row >= 0:
-            super().mouseMoveEvent(event)
-            return
         row = self.rowAt(event.pos().y())
         if row != self._hover_row:
-            if self._hover_row >= 0:
-                _hover_retirer(self._hover_doc)
             self._hover_row = row
-            if 0 <= row < len(self._hover_parts):
-                _hover_appliquer(self._hover_parts[row], self._hover_doc)
+            if row >= 0:
+                # Survol d'une ligne (verrouillée ou non) → son highlight 3D
+                self._appliquer_ligne(row)
+            else:
+                # Curseur dans le tableau mais hors de toute ligne
+                self._restaurer_etat_base()
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event):
-        if self._locked_row >= 0:
-            # Ligne verrouillée : le highlight RESTE jusqu'au clic Modifier.
-            # On ne touche ni au highlight ni au verrou.
-            pass
-        elif self._hover_row >= 0:
-            _hover_retirer(self._hover_doc)
         self._hover_row = -1
+        self._restaurer_etat_base()
         super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         row = self.rowAt(event.pos().y())
+        _notifier_nouvelle_ligne = False
         if row >= 0:
             if self._locked_row == row:
                 # Second clic sur la ligne verrouillée : déverrouiller et déselectionner.
                 # On consomme l'événement (sans super()) pour éviter que Qt re-sélectionne
                 # la ligne après le clearSelection().
-                _hover_retirer(self._hover_doc)
                 self._locked_row = -1
                 self.selectionModel().clearSelection()
                 # Passer en mode hover sur la ligne courante
                 self._hover_row = row
-                if 0 <= row < len(self._hover_parts):
-                    _hover_appliquer(self._hover_parts[row], self._hover_doc)
+                self._appliquer_ligne(row)
                 return   # ne pas appeler super() — évite la re-sélection Qt
             else:
                 # Nouveau clic : changer de ligne verrouillée
-                if self._locked_row >= 0:
-                    _hover_retirer(self._hover_doc)
-                if 0 <= row < len(self._hover_parts):
-                    _hover_appliquer(self._hover_parts[row], self._hover_doc)
                 self._locked_row = row
                 self._hover_row  = -1
+                self._appliquer_ligne(row)
+                _notifier_nouvelle_ligne = True
         else:
-            # Clic en dehors des lignes : déverrouiller
+            # Clic dans la zone vide du tableau (sous les lignes) : NE PAS
+            # déverrouiller. Le verrouillage doit persister jusqu'au clic
+            # sur "Modifier" ou jusqu'à un second clic sur la ligne
+            # verrouillée (cf. commentaire dans _on_tab_change : "Le
+            # highlight verrouillé (sélection) reste jusqu'au clic
+            # Modifier"). On consomme l'événement pour empêcher Qt de
+            # désélectionner la ligne via son propre modèle de sélection.
             if self._locked_row >= 0:
-                _hover_retirer(self._hover_doc)
-                self._locked_row = -1
+                return
         super().mousePressEvent(event)
+        if _notifier_nouvelle_ligne and self._callback_nouvelle_ligne is not None:
+            # Appelé APRÈS super() (Qt a terminé sa propre mise à jour de
+            # sélection) mais de façon SYNCHRONE — pas de QTimer.singleShot :
+            # Qt gère très bien l'ouverture d'un dialogue modal depuis un
+            # gestionnaire d'événement souris (cf. _on_clic_modifier, qui
+            # fait la même chose de façon synchrone depuis un clic bouton).
+            try:
+                self._callback_nouvelle_ligne(row)
+            except Exception as e:
+                print(f"[ORing onglet3] _callback_nouvelle_ligne AVERT : {e}")
+                import traceback
+                traceback.print_exc()
 
     def enterEvent(self, event):
         """Activation du hover dès l'entrée dans le tableau (sans clic préalable)."""
         # Forcer un mouseMoveEvent synthétique pour déclencher le hover immédiatement
         # si une ligne est sous le curseur à l'entrée de l'onglet 3.
         super().enterEvent(event)
-        if self._locked_row >= 0:
-            return  # ligne verrouillée — pas de hover libre
         try:
             try:
                 from PySide2.QtGui import QCursor
@@ -764,20 +1696,246 @@ class _TableJointsHover(QtWidgets.QTableWidget):
             pos_local  = self.viewport().mapFromGlobal(pos_global)
             row = self.rowAt(pos_local.y())
             if row >= 0 and row != self._hover_row:
-                if self._hover_row >= 0:
-                    _hover_retirer(self._hover_doc)
                 self._hover_row = row
-                if 0 <= row < len(self._hover_parts):
-                    _hover_appliquer(self._hover_parts[row], self._hover_doc)
+                self._appliquer_ligne(row)
         except Exception:
             pass
 
     def deverrouiller(self):
         """Appelé depuis le dialogue pour retirer le highlight verrouillé."""
         if self._locked_row >= 0:
-            _hover_retirer(self._hover_doc)
             self._locked_row = -1
             self._hover_row  = -1
+            _hover_retirer(self._hover_doc)
+
+    def verrouiller_ligne(self, row):
+        """
+        Verrouille explicitement la ligne `row` (sélection persistante) et
+        applique immédiatement son highlight 3D — utilisé quand le
+        verrouillage est piloté par le dialogue (mode modification) plutôt
+        que par un clic utilisateur direct dans le tableau.
+        """
+        if 0 <= row < self.rowCount():
+            self._locked_row = row
+            self._hover_row  = -1
+            self._appliquer_ligne(row)
+
+
+NIVEAU_INVALIDE      = 'invalide'
+NIVEAU_AVERTISSEMENT = 'avertissement'
+NIVEAU_OK            = 'ok'
+
+
+def _verdict_joint(meta: dict, derive_info: dict = None) -> dict:
+    """Juge un joint existant **sur la géométrie courante du modèle**.
+
+    Reporte dans l'onglet 3 ce que l'onglet 2 dit déjà d'un joint en cours de
+    calcul : alertes bloquantes, avertissements. Deux situations motivaient la
+    demande (11/09/2026) et sortent toutes deux d'un seul appel à
+    `calculer_gorge()` :
+
+    - **« pas de solution dans la série du joint initial »** — la série est
+      passée telle qu'elle est stockée, et `calculer_gorge()` **respecte une
+      série imposée** : si le d1 n'y est plus dans la plage, elle le dit
+      elle-même (alerte au-delà du seuil bloquant, avertissement entre 5 et
+      8 %). Pour un joint dont la série avait été choisie en mode Auto, c'est
+      le mode Auto qui est rejoué — l'avertissement « série auto-corrigée »
+      signale alors le même fait ;
+    - **« joint non recommandé »** — squeeze, remplissage, stretch,
+      extrusion, matériau : les alertes et avertissements habituels.
+
+    **Géométrie courante, pas valeurs stockées** (décision utilisateur) : le Ø
+    complémentaire est lu dans le modèle via la détection de dérive, et le Ø
+    de la pièce à gorge en est dérivé comme partout ailleurs dans la macro
+    (`d_princ = d_compl ∓ 2·jeu`). Un changement de diamètre se voit donc dans
+    la liste **avant** l'actualisation des joints — c'est l'usage demandé.
+
+    Trois niveaux, par gravité :
+
+    ===================  ===============================================
+    `invalide`           une alerte bloquante (le « ✗ INVALID » de
+                         l'onglet 2), **ou** un étirement hors des bornes
+                         acceptables — le « non recommandé » rouge du
+                         combo « Série »
+    `avertissement`      étirement ou compression hors plage idéale,
+                         **ou** une dérive
+    `ok`                 rien à signaler
+    ===================  ===============================================
+
+    Les DEUX bornes de la plage d'étirement comptent. Un joint d'arbre dont
+    le d1 dépasse largement le fond de gorge (étirement très négatif) ne
+    serre plus rien : l'onglet 2 le marque « non recommandé » bien qu'il se
+    déclare `VALIDE`, faute d'alerte bloquante.
+
+    Le niveau `avertissement` ne retient **pas** n'importe quel
+    avertissement de calcul : voir le commentaire du critère plus bas, il a
+    été mesuré. Les avertissements écartés de l'icône restent affichés dans
+    l'infobulle — c'est l'icône qui doit être sélective, pas le détail.
+
+    **Ne lève jamais** : un joint dont le calcul échoue retombe sur le seul
+    statut de dérive, comme avant cette évolution. Un indicateur de confort
+    ne doit pas empêcher la liste de s'afficher.
+    """
+    deriv    = derive_info or {}
+    a_derive = bool(deriv.get('derive'))
+    delta    = deriv.get('delta') if a_derive else None
+
+    alertes = []
+    avertissements = []
+    hors_plage = False
+    impossible = False
+    try:
+        from .calcul import calculer_gorge
+
+        position = (meta.get('position') or 'arbre')
+        jeu      = float(meta.get('jeu_radial_mm', 0.0) or 0.0)
+
+        # Ø de la pièce COMPLÉMENTAIRE, courant si le modèle le donne.
+        d_comp = deriv.get('courant')
+        if d_comp is None:
+            d_comp = meta.get('d_comp_ref_mm', 0.0)
+        d_comp = float(d_comp or 0.0)
+
+        if d_comp > 0.0:
+            # calculer_gorge() attend TOUJOURS l'alésage (cf. sa docstring) :
+            #   position 'arbre'   → l'alésage EST la pièce complémentaire
+            #   position 'alesage' → l'alésage porte la gorge, dérivé de l'arbre
+            d_alesage = d_comp if position == 'arbre' else d_comp + 2.0 * jeu
+
+            # Série stockée imposée — sauf si elle avait été choisie en mode
+            # Auto, auquel cas on rejoue le mode Auto pour juger le joint tel
+            # que la macro le referait.
+            serie = '' if meta.get('serie_auto') else (meta.get('serie') or '')
+
+            res = calculer_gorge(
+                diametre_piece_mm = d_alesage,
+                position          = position,
+                type_montage      = (meta.get('type_montage') or 'statique'),
+                materiau          = (meta.get('materiau') or 'NBR'),
+                pression_bar      = float(meta.get('pression_bar', 0.0) or 0.0),
+                temperature_C     = float(meta.get('temperature_C', 20.0) or 20.0),
+                fluide            = (meta.get('fluide') or ''),
+                standard          = (meta.get('standard') or 'ISO_3601'),
+                serie             = serie,
+                squeeze_cible_pct = float(meta.get('squeeze_cible_pct', 0.0) or 0.0),
+                jeu_radial_mm     = jeu,
+            )
+            alertes        = list(res.alertes or [])
+            avertissements = list(res.avertissements or [])
+
+            # ── Le critère de l'icône orange ─────────────────────────────
+            # PAS « un avertissement quelconque » : mesuré le 11/09/2026 sur
+            # une population réaliste de 40 joints, ce critère marquait
+            # **100 %** d'entre eux — l'avertissement « Fill ~71 % < 75 % »
+            # se déclenche sur presque tous les joints normaux. La colonne
+            # aurait été uniformément orange, donc muette.
+            #
+            # Le critère retenu est celui du combo « Série » de l'onglet 2,
+            # lu dans le MÊME fichier de paramètres : l'étirement (ou la
+            # compression) du joint hors de sa plage idéale. Sur la même
+            # population : 82 % ✓, 18 % ⚠, 0 % ⛔.
+            #
+            # Il couvre aussi « pas de solution dans la série du joint
+            # initial » : quand aucun d1 ne convient, le d1 retenu sort
+            # forcément de la plage, donc le stretch le signale.
+            # La plage d'étirement a DEUX bornes, et le combo « Série » de
+            # l'onglet 2 les teste toutes les deux. Une première version du
+            # 11/09/2026 n'a testé que la borne haute : un joint d'arbre à
+            # −31,87 % d'étirement — d1 très supérieur au fond de gorge, le
+            # joint ne serre plus rien — ressortait ✓ alors que l'onglet 2 le
+            # marquait « non recommandé » en rouge. Signalé par l'utilisateur,
+            # capture à l'appui, le jour même.
+            from .joints import _params_calcul
+            _pj      = _params_calcul()
+            _arbre   = _pj['stretch']['arbre']
+            _alesage = _pj['stretch']['alesage']
+            stretch  = float(getattr(res, 'stretch_pct', 0.0) or 0.0)
+
+            if position == 'arbre':
+                _mini = float(_arbre.get('min_accepte', -0.5))
+                _maxi = float(_pj['stretch_global'].get('max_bloquant', 8.0))
+                _ideal = float(_arbre.get('max_acceptable', 5.0))
+                # Hors des bornes = le « non recommandé » rouge du combo.
+                impossible = stretch < _mini or stretch > _maxi
+                hors_plage = stretch > _ideal
+            else:
+                compression = -stretch
+                _cmax  = float(_alesage.get('compression_max', 3.0))
+                _ideal = float(_alesage.get('compression_avertissement', 2.0))
+                # Un joint ÉTIRÉ dans un alésage est aussi absurde qu'un joint
+                # non serré sur un arbre : les deux bornes comptent. La
+                # tolérance de 0,5 % sur l'étirement est celle que le combo
+                # « Série » applique déjà — alignement volontaire, pour que
+                # les deux vues ne se contredisent jamais.
+                impossible = compression > _cmax or stretch > 0.5
+                hors_plage = compression > _ideal
+    except Exception as erreur:
+        print("[ORing onglet3] AVERT verdict du joint : %s" % erreur)
+
+    if alertes or impossible:
+        niveau = NIVEAU_INVALIDE
+    elif hors_plage or a_derive:
+        niveau = NIVEAU_AVERTISSEMENT
+    else:
+        niveau = NIVEAU_OK
+
+    return {
+        'niveau':         niveau,
+        'alertes':        alertes,
+        'avertissements': avertissements,
+        'derive':         a_derive,
+        'delta':          delta,
+    }
+
+
+def _ouvrir_transaction(intitule: str) -> bool:
+    """Ouvre une transaction couvrant TOUS les documents touchés.
+
+    `doc.openTransaction()` n'engage qu'UN document. Or une insertion en
+    assemblage lié en écrit deux : la gorge va dans le document source du
+    composant (`_doc_cible`), le conteneur et les métadonnées dans
+    l'assemblage. Seul `App.setActiveTransaction()` les relie par un
+    identifiant commun — donc une seule entrée d'annulation pour l'ensemble,
+    et un abandon qui défait les deux.
+
+    L'ouverture est **paresseuse** : rien n'est engagé tant qu'aucun document
+    n'est modifié. Refermer une transaction dans laquelle rien n'a été écrit
+    est donc sans effet — ce qui autorise à ouvrir au plus tôt, avant même les
+    gardes de saisie, plutôt que d'aller chercher le dernier point sûr dans
+    870 lignes.
+
+    Retourne True si la transaction est ouverte. En cas d'échec, retourne
+    False après l'avoir dit : `_fermer_transaction()` ne fera alors rien et le
+    flux se déroule exactement comme avant ce correctif. **Une transaction est
+    un filet : elle ne doit jamais empêcher une insertion d'aboutir.**
+
+    Action 1 de plan_transposition_swaging.md (11/09/2026).
+    """
+    if not FREECAD_DISPONIBLE:
+        return False
+    try:
+        App.setActiveTransaction(intitule)
+        return True
+    except Exception as erreur:
+        print("[ORing] AVERT ouverture de transaction impossible : %s "
+              "— insertion sans filet d'annulation" % erreur)
+        return False
+
+
+def _fermer_transaction(ouverte: bool, abandon: bool = False) -> None:
+    """Valide — ou abandonne — la transaction ouverte par `_ouvrir_transaction()`.
+
+    `ouverte` est la valeur rendue par l'ouverture : False, il n'y a rien à
+    fermer. L'abandon défait toutes les écritures faites depuis l'ouverture,
+    dans tous les documents concernés.
+    """
+    if not ouverte or not FREECAD_DISPONIBLE:
+        return
+    try:
+        App.closeActiveTransaction(abandon)
+    except Exception as erreur:
+        print("[ORing] AVERT fermeture de transaction (%s) : %s"
+              % ('abandon' if abandon else 'validation', erreur))
 
 
 class DialogueORing(QtWidgets.QDialog):
@@ -791,10 +1949,26 @@ class DialogueORing(QtWidgets.QDialog):
         self._part_en_modification = None   # None = mode création, Part = mode modif
         self._parts_liste          = []     # index ligne → Part (onglet 3)
         self._d_comp_ref_modif     = 0.0    # diamètre de référence en mode modif
+        # BUGFIX (03/09/2026, signalé par l'utilisateur) : quand seul le côté
+        # gorge a dérivé (cf. _recalculer_apres_derive), sa valeur courante doit
+        # rester la référence pour TOUTE la session de modification -- jamais
+        # recalculée/écrasée depuis comp+jeu tant que non appliquée/annulée.
+        # 0.0 = aucune dérive gorge en attente.
+        self._d_gorge_drift_ref_modif = 0.0
         self._calcul_en_cours      = False  # garde anti-réentrance calcul
         self._appliquer_en_cours   = False  # garde anti-réentrance _on_appliquer
+        # LCS créés par l'assistant d'arête PENDANT cette session de dialogue,
+        # sous la forme (document, Name, Label). Un abandon d'insertion les
+        # retire — règle posée par l'utilisateur le 13/09/2026 ; voir
+        # _nettoyer_lcs_apres_abandon().
+        self._lcs_crees_session    = []
         self._onglet_init_en_cours = False  # garde anti-réentrance _onglet_initial
         self._dernier_radio_rayon  = False  # mémoire radio diam/rayon (#8)
+
+        # --- Sélection de joint onglet 3 -> édité (comportement "oring") ---
+        self._meta_avant_modif              = None  # dict métadonnées au moment d'entrer en édition
+        self._selection_onglet3_en_cours    = False # garde anti-réentrance _on_selection_ligne_joint3
+        self._joint_en_attente_apres_validation = None  # Part à ouvrir après un "Valider" en onglet 3
 
         try:
             self._doc = get_document_actif()
@@ -873,16 +2047,33 @@ class DialogueORing(QtWidgets.QDialog):
 
         # ── Boutons (hors onglets) ────────────────────────────────────────
         bl = QtWidgets.QHBoxLayout()
+        self.btn_guide     = QtWidgets.QPushButton(tr("? Open guide"))
         self.btn_appliquer = QtWidgets.QPushButton(tr("Apply in FreeCAD"))
         self.btn_fermer    = QtWidgets.QPushButton(tr("Close"))
         self.btn_appliquer.setEnabled(False)
 
+        self.btn_guide.setToolTip(tr(
+            "Re-open the illustrated prerequisites guide\n"
+            "(document structure, named parameters, LCS, service data)."
+        ))
+        self.btn_guide.clicked.connect(self._on_afficher_guide)
         self.btn_appliquer.clicked.connect(self._on_appliquer)
         self.btn_fermer.clicked.connect(self.reject)
-        bl.addWidget(self.btn_appliquer)
+        bl.addWidget(self.btn_guide)
         bl.addStretch()
+        bl.addWidget(self.btn_appliquer)
         bl.addWidget(self.btn_fermer)
         outer.addLayout(bl)
+
+    def _on_afficher_guide(self):
+        """Ouvre (ou rouvre) le guide illustré des prérequis à la demande."""
+        if not _afficher_guide_prerequis(parent=self):
+            message_info(
+                tr("ORing"),
+                tr("The illustrated guide is unavailable — see the FreeCAD "
+                   "console for details."),
+                parent=self
+            )
 
     def _onglet_initial(self, derives_precalcules=None):
         """
@@ -911,14 +2102,21 @@ class DialogueORing(QtWidgets.QDialog):
                 def _basculer():
                     self._rafraichir_joints_existants()
                     self._tabs.setCurrentIndex(2)
+                    # Point de synchronisation : voir _ouvrir_joint_en_attente_si_necessaire
+                    self._ouvrir_joint_en_attente_si_necessaire()
                 QtCore.QTimer.singleShot(0, _basculer)
             else:
                 # Pré-remplir le tableau même sans dérive (onglet 3 prêt à consulter)
-                QtCore.QTimer.singleShot(0, self._rafraichir_joints_existants)
+                def _rafraichir_puis_ouvrir_en_attente():
+                    self._rafraichir_joints_existants()
+                    # Point de synchronisation : voir _ouvrir_joint_en_attente_si_necessaire
+                    self._ouvrir_joint_en_attente_si_necessaire()
+                QtCore.QTimer.singleShot(0, _rafraichir_puis_ouvrir_en_attente)
         except Exception:
             import traceback
             print(f"[ORing onglet3] _onglet_initial ERREUR :\n{traceback.format_exc()}")
             QtCore.QTimer.singleShot(0, self._rafraichir_joints_existants)
+            QtCore.QTimer.singleShot(0, self._ouvrir_joint_en_attente_si_necessaire)
         finally:
             self._onglet_init_en_cours = False
 
@@ -1024,16 +2222,63 @@ class DialogueORing(QtWidgets.QDialog):
         if r.d1 is not None and r.stretch_pct is not None:
             st = r.stretch_pct
             txt_d1 = f"{r.d1} mm   ({label_d}) stretch {st:.2f} %"
-            if st > 5.0:
-                style = "color: #cc0000; font-weight: bold;"
-            elif st > 3.0:
-                style = "color: #b05000; font-weight: bold;"
-            elif st < 0:
-                style = "color: #cc0000; font-weight: bold;"
+            # BUGFIX (05/09/2026, signale par l'utilisateur : "la valeur est
+            # indiquee en rouge, un utilisateur lambda comprend que cette
+            # valeur n'est pas correcte") : la regle "st < 0 -> rouge"
+            # s'appliquait quelle que soit la position. Or en gorge dans
+            # ALESAGE, choisir_d1() (joints.py) selectionne deliberement
+            # d1 >= D_arbre : le stretch y est NEGATIF par construction --
+            # c'est la compression radiale initiale du joint (plage nominale
+            # 0-3 %, parametres_calcul.json), pas un defaut. Un montage
+            # parfaitement conforme s'affichait donc systematiquement en
+            # rouge. La coloration depend desormais de la position, avec des
+            # seuils lus dans parametres_calcul.json (source unique, partagee
+            # avec le combo "Serie") plutot que codes en dur.
+            try:
+                from .joints import _params_calcul as _pc_synth
+                _st_cfg      = _pc_synth()['stretch']
+                _MIN_ARBRE   = _st_cfg['arbre']['min_accepte']         # -0.5 %
+                _AVERT_ARBRE = _st_cfg['arbre']['max_avertissement']   #  3 %
+                _MAX_ARBRE   = _st_cfg['arbre']['max_acceptable']      #  5 %
+                _COMPR_MAX   = _st_cfg['alesage']['compression_max']   #  3 %
+                _COMPR_AVERT = _st_cfg['alesage'].get(
+                    'compression_avertissement', _COMPR_MAX)           #  2 %
+            except Exception:
+                _MIN_ARBRE, _AVERT_ARBRE, _MAX_ARBRE = -0.5, 3.0, 5.0
+                _COMPR_MAX, _COMPR_AVERT = 3.0, 2.0
+            _ROUGE  = "color: #cc0000; font-weight: bold;"
+            _ORANGE = "color: #b05000; font-weight: bold;"
+            _VERT   = "color: #1a7a1a; font-weight: bold;"
+            if position == 'alesage':
+                _compr = -st
+                if st > 0.5:
+                    # d1 < D_arbre : le joint serait etire dans l'alesage,
+                    # il ne resterait pas loge dans sa gorge.
+                    style = _ROUGE
+                elif _compr > _COMPR_MAX:
+                    style = _ROUGE
+                elif _compr > _COMPR_AVERT:
+                    style = _ORANGE     # conforme, mais haut de la plage
+                else:
+                    style = _VERT
+                _tip = tr("Groove in bore: a negative value is the normal "
+                          "initial radial compression - nominal 0 to {max} %.",
+                          max=_COMPR_MAX)
             else:
-                style = "color: #1a7a1a; font-weight: bold;"
+                # Gorge sur arbre : le joint doit etre ETIRE sur le fond de
+                # gorge ; un stretch negatif y est bien anormal (d1 > D_fond).
+                if st > _MAX_ARBRE or st < _MIN_ARBRE:
+                    style = _ROUGE
+                elif st > _AVERT_ARBRE or st < 0.0:
+                    style = _ORANGE
+                else:
+                    style = _VERT
+                _tip = tr("Groove on shaft: the seal is stretched over the "
+                          "groove bottom - nominal 0 to {max} %.",
+                          max=_MAX_ARBRE)
             self._synth_vals["d1"].setText(txt_d1)
             self._synth_vals["d1"].setStyleSheet(style)
+            self._synth_vals["d1"].setToolTip(_tip)
         else:
             self._synth_vals["d1"].setText("—")
             self._synth_vals["d1"].setStyleSheet("")
@@ -1177,6 +2422,10 @@ class DialogueORing(QtWidgets.QDialog):
             tr("\u0394 drift")
         ]
         self.table_joints = _TableJointsHover(0, len(COLONNES))
+        # Comportement "oring" : cliquer sur une nouvelle ligne rend ce
+        # joint éditable (avec vérification des modifs en attente le cas
+        # échéant) — voir _on_selection_ligne_joint3.
+        self.table_joints._callback_nouvelle_ligne = self._on_selection_ligne_joint3
         self.table_joints.setHorizontalHeaderLabels(COLONNES)
         self.table_joints.setEditTriggers(
             QtWidgets.QTableWidget.NoEditTriggers
@@ -1227,6 +2476,30 @@ class DialogueORing(QtWidgets.QDialog):
             return
 
         doc = self._doc
+
+        # Mémoriser le Part actuellement verrouillé (surbrillance table +
+        # vue 3D) AVANT de vider la table : setRowCount(0) puis repeuplement
+        # détruit la sélection visuelle Qt sans jamais la restaurer — c'est
+        # la cause du highlight perdu au changement d'onglet (_on_tab_change
+        # appelle cette méthode à chaque réactivation de l'onglet 3).
+        _locked_part_name = ''
+        if (hasattr(self, 'table_joints')
+                and self.table_joints._locked_row >= 0
+                and hasattr(self, '_parts_liste')
+                and 0 <= self.table_joints._locked_row < len(self._parts_liste)):
+            _locked_part_name = self._parts_liste[self.table_joints._locked_row].Name
+        elif getattr(self, '_part_en_modification', None) is not None:
+            # BUGFIX (débogage 2026-08-26) : en mode modification, _on_clic_modifier
+            # / _ouvrir_depuis_selection appellent table_joints.deverrouiller(), ce
+            # qui remet _locked_row à -1 (pour retirer le survol jaune avant de
+            # quitter la vue tableau). Résultat : la branche ci-dessus ne trouvait
+            # plus jamais rien à restaurer, et la ligne du joint en cours d'édition
+            # ne réapparaissait plus sélectionnée en revenant sur l'onglet 3 — le
+            # highlight ne "persistait" donc pas pendant l'édition. On retombe ici
+            # sur le Part actuellement en modification (_part_en_modification),
+            # indépendamment de l'état de _locked_row.
+            _locked_part_name = self._part_en_modification.Name
+
         self.table_joints.setRowCount(0)
 
         if doc is None:
@@ -1245,6 +2518,23 @@ class DialogueORing(QtWidgets.QDialog):
             self.lbl_joints_nb.setText(
                 tr("Refresh error: {err}\n(see FreeCAD console)", err=_e_raf)
             )
+            return
+
+        # Restaurer la ligne verrouillée après reconstruction (retrouvée par
+        # Name — robuste au tri ou à un réordonnancement des Parts). Si le
+        # Part n'existe plus (supprimé entre-temps), le verrou est levé.
+        if _locked_part_name:
+            for _idx, _p in enumerate(self._parts_liste):
+                if _p.Name == _locked_part_name:
+                    self.table_joints.selectRow(_idx)
+                    # verrouiller_ligne() pose _locked_row ET réapplique tout
+                    # de suite le highlight 3D (jaune + Gui.Selection) — sans
+                    # cela, le highlight ne réapparaissait qu'au prochain
+                    # mouvement de souris dans le tableau (débogage 2026-08-26).
+                    self.table_joints.verrouiller_ligne(_idx)
+                    break
+            else:
+                self.table_joints._locked_row = -1
 
     def _rafraichir_joints_existants_interne(
             self, doc, lister_parts_oring, lire_metadonnees, verifier_derives):
@@ -1275,27 +2565,55 @@ class DialogueORing(QtWidgets.QDialog):
             a_derive = deriv.get('derive', False)
             delta     = deriv.get('delta') if a_derive else None
 
-            # Col 0 : icône statut (⚠ danger ou ✓ OK)
+            # Col 0 : icône statut. Depuis le 11/09/2026 (demande
+            # utilisateur), elle ne porte plus seulement la dérive : elle
+            # reporte aussi l'avertissement de l'onglet 2, pour repérer d'un
+            # coup d'œil les joints qui posent problème après un changement
+            # de diamètre. Même vocabulaire que l'onglet 2 : ⛔ pour une
+            # alerte bloquante, ⚠ pour un avertissement, ✓ sinon.
+            _verdict = _verdict_joint(meta, deriv)
+            _lignes_tip = []
+
             if a_derive:
-                icone_txt = "⚠"
-                icone_color = QtGui.QColor(200, 80, 0)
-                tooltip_icone = (
-                    tr("Drift detected: \u0394 {delta:.3f} mm\n"
+                _lignes_tip.append(tr(
+                    "Drift detected: \u0394 {delta:.3f} mm\n"
                     "The complementary part diameter has changed\n"
                     "since insertion. Click Edit to recalculate.",
-                    delta=delta)
-                )
+                    delta=delta))
+
+            if _verdict['alertes'] or _verdict['avertissements']:
+                _lignes_tip.append(tr("Recalculated on the current model "
+                                      "geometry:"))
+                for _a in _verdict['alertes']:
+                    _lignes_tip.append("  \u26d4 " + str(_a))
+                for _a in _verdict['avertissements']:
+                    _lignes_tip.append("  \u26a0 " + str(_a))
+
+            if _verdict['niveau'] == NIVEAU_INVALIDE:
+                icone_txt   = "\u26d4"
+                icone_color = QtGui.QColor(204, 0, 0)
+            elif _verdict['niveau'] == NIVEAU_AVERTISSEMENT:
+                icone_txt   = "\u26a0"
+                icone_color = QtGui.QColor(200, 80, 0)
             else:
-                icone_txt = "✓"
+                icone_txt   = "\u2713"
                 icone_color = QtGui.QColor(20, 140, 20)
-                tooltip_icone = tr("Dimensions consistent with metadata.")
+
+            tooltip_icone = ("\n\n".join(_lignes_tip) if _lignes_tip
+                             else tr("Dimensions consistent with metadata."))
 
             item_icone = QtWidgets.QTableWidgetItem(icone_txt)
             item_icone.setTextAlignment(QtCore.Qt.AlignCenter)
             item_icone.setForeground(QtGui.QBrush(icone_color))
-            item_icone.setFont(
-                QtGui.QFont("", 11, QtGui.QFont.Bold)
-            )
+            # BUGFIX (03/09/2026, signale par l'utilisateur) : QFont("", ...)
+            # passe une famille de police VIDE, ce qui declenche un warning
+            # Qt (console) a chaque rafraichissement de ce tableau --
+            # QFont() (sans argument) + setPointSize/setBold donne le meme
+            # rendu (taille 11, gras) sans ce warning.
+            _police_icone = QtGui.QFont()
+            _police_icone.setPointSize(11)
+            _police_icone.setBold(True)
+            item_icone.setFont(_police_icone)
             item_icone.setToolTip(tooltip_icone)
             item_icone.setFlags(
                 item_icone.flags() & ~QtCore.Qt.ItemIsSelectable
@@ -1429,16 +2747,40 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
 
     def _recalculer_apres_derive(self, part, meta: dict, derive_info: dict):
         """
-        Appelée lorsque la pièce complémentaire a dérivé par rapport aux métadonnées.
+        Appelée lorsqu'une dérive est détectée sur ce joint (côté pièce
+        complémentaire et/ou côté pièce portant la gorge, cf. metadata.
+        verifier_derives()).
 
-        1. Calcule le nouveau diamètre de la pièce principale (body gorge)
-           en appliquant le jeu radial prescrit au diamètre courant de la pièce comp.
-        2. Met à jour le paramètre FreeCAD correspondant dans le body gorge.
-        3. Recherche le meilleur joint compatible (même série → même norme → autre norme).
-        4. Présente un dialogue de confirmation à l'utilisateur.
+        BUGFIX (02/09/2026, signalé par l'utilisateur) : l'ancienne version
+        supposait TOUJOURS que seule la pièce complémentaire pouvait avoir
+        dérivé -- son message affichait donc "Ancien → Courant" identiques
+        pour le comp (non pertinent) quand c'était en réalité le paramètre
+        de la pièce portant la gorge qui avait changé, et le clic sur OK
+        aurait silencieusement ÉCRASÉ cette valeur réelle par une valeur
+        recalculée à partir du comp (inchangé). Cette version détecte quel
+        côté a réellement dérivé (tolérance 0.001 mm, identique à
+        verifier_derives()) et agit en conséquence :
+
+          - Seul le comp a dérivé (cas historique) : comportement inchangé
+            -- le nouveau diamètre gorge est recalculé depuis le comp + jeu
+            radial et ÉCRIT dans le paramètre FreeCAD du body gorge
+            (anticipé avant confirmation, annulable).
+          - Seul le côté gorge a dérivé : sa valeur COURANTE fait foi et
+            n'est JAMAIS réécrite ni annulée -- le message décrit ce côté
+            précisément, la recherche de joint se base sur le diamètre
+            d'alésage dérivé de cette valeur gorge courante.
+          - Les deux côtés ont dérivé : aucune écriture automatique, le
+            message affiche les deux écarts, la recherche de joint se base
+            sur le côté gorge (jamais écrasé).
+
+        Corrige au passage un bug préexistant distinct : pour
+        position='arbre', diametre_piece_mm transmis à calculer_gorge()
+        doit toujours être le diamètre d'ALÉSAGE (cf. calcul.calculer_gorge
+        et le flux normal _on_calculer_interne), jamais le diamètre arbre.
 
         Retourne un dict meta mis à jour (pour pre-fill) ou None si annulé / erreur.
-        Si l'utilisateur annule, le paramètre FreeCAD est remis à sa valeur initiale.
+        Si l'utilisateur annule et qu'une écriture a été anticipée, le
+        paramètre FreeCAD est remis à sa valeur initiale.
         """
         try:
             from .calcul  import calculer_gorge
@@ -1460,42 +2802,90 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         param_gorge     = meta.get('param_gorge', '')
         param_gorge_mode = meta.get('param_gorge_rayon', 'diametre')
 
-        d_comp_courant = float(derive_info.get('courant', 0.0))
-        d_comp_ancien  = float(derive_info.get('ref', 0.0))
+        TOL = 0.001  # identique à metadata.verifier_derives()
 
-        if d_comp_courant <= 0:
+        _courant_comp  = derive_info.get('courant')
+        d_comp_courant = float(_courant_comp) if _courant_comp is not None else 0.0
+        d_comp_ancien  = float(derive_info.get('ref', 0.0))
+        delta_comp     = derive_info.get('delta_comp')
+        derive_comp    = delta_comp is not None and delta_comp > TOL
+
+        _courant_gorge  = derive_info.get('courant_gorge')
+        d_gorge_courant = float(_courant_gorge) if _courant_gorge is not None else None
+        d_gorge_ancien  = float(derive_info.get('ref_gorge', 0.0))
+        delta_gorge     = derive_info.get('delta_gorge')
+        derive_gorge    = delta_gorge is not None and delta_gorge > TOL
+
+        if not derive_comp and not derive_gorge:
+            print('[ORing dérive] appelé sans dérive comp/gorge détectée — abandon')
+            return None
+
+        if derive_comp and d_comp_courant <= 0:
             print('[ORing dérive] diamètre comp. courant invalide')
             return None
 
-        # Nouveau diamètre gorge
-        if position == 'arbre':
-            d_gorge_nouveau = d_comp_courant - 2.0 * jeu_radial
-        else:
-            d_gorge_nouveau = d_comp_courant + 2.0 * jeu_radial
+        print('[ORing dérive] côté(s) détecté(s) : comp=' + str(derive_comp)
+              + ' (Δ=' + str(delta_comp) + ')  gorge=' + str(derive_gorge)
+              + ' (Δ=' + str(delta_gorge) + ')')
 
-        val_freecad = d_gorge_nouveau / 2.0 if param_gorge_mode == 'rayon' else d_gorge_nouveau
-
-        # Retrouver le body gorge
+        # Retrouver le body gorge (nécessaire dans tous les cas : message +
+        # éventuelle écriture)
         from .metadata import trouver_objet as _trouver_obj
         body_gorge = _trouver_obj(doc,
             name    = meta.get('body_gorge_name', ''),
             label   = meta.get('body_gorge_label', ''),
             type_id = 'PartDesign::Body')
 
-        # Sauvegarder valeur avant modif pour pouvoir annuler
         val_gorge_avant = None
         if body_gorge and param_gorge:
             params = lister_parametres_body(body_gorge)
             val_gorge_avant = params.get(param_gorge)
 
+        # Seul cas où l'on réécrit le paramètre FreeCAD du body gorge : le
+        # comp a dérivé ET le gorge lui n'a PAS dérivé (sinon on écraserait
+        # une valeur réellement modifiée par l'utilisateur/le modèle).
+        ecrire_gorge = derive_comp and not derive_gorge
+
+        if ecrire_gorge:
+            # Cas historique : seul le comp a changé → on recalcule le
+            # diamètre gorge à partir du comp + jeu radial, et on l'écrit.
+            if position == 'arbre':
+                d_gorge_nouveau = d_comp_courant - 2.0 * jeu_radial
+            else:
+                d_gorge_nouveau = d_comp_courant + 2.0 * jeu_radial
+            # diametre_piece_mm attendu par calculer_gorge() = TOUJOURS
+            # l'alésage (cf. docstring calcul.calculer_gorge + flux normal
+            # _on_calculer_interne) :
+            #   position 'arbre'   → alésage = pièce comp (valeur courante)
+            #   position 'alesage' → alésage = pièce gorge (nouvelle valeur)
+            d_alesage_calcul = d_comp_courant if position == 'arbre' else d_gorge_nouveau
+        else:
+            # Le côté gorge a lui-même dérivé (seul ou avec le comp) : sa
+            # valeur courante fait foi, on ne la réécrit jamais.
+            if d_gorge_courant is not None:
+                d_gorge_nouveau = d_gorge_courant
+            else:
+                print('[ORing dérive] valeur gorge courante indisponible — repli sur la référence')
+                d_gorge_nouveau = d_gorge_ancien
+            if position == 'arbre':
+                # body_gorge = arbre → alésage = D_arbre + 2×jeu
+                d_alesage_calcul = d_gorge_nouveau + 2.0 * jeu_radial
+            else:
+                # body_gorge = alésage → alésage = sa propre valeur
+                d_alesage_calcul = d_gorge_nouveau
+
+        val_freecad = d_gorge_nouveau / 2.0 if param_gorge_mode == 'rayon' else d_gorge_nouveau
+
         # Appliquer le nouveau diamètre dès le dialogue de confirmation
-        # (anticipation : sera ré-appliqué dans _on_appliquer via _mettre_a_jour_parametre)
-        if body_gorge and param_gorge:
+        # (anticipation : sera ré-appliqué dans _on_appliquer via
+        # _mettre_a_jour_parametre) -- UNIQUEMENT si c'est bien le comp qui
+        # a dérivé ; sinon la valeur gorge courante n'est jamais touchée.
+        if ecrire_gorge and body_gorge and param_gorge:
             ok = set_valeur_parametre(body_gorge, param_gorge, val_freecad)
             print('[ORing dérive] set_valeur_parametre("' + param_gorge + '", '
                   + repr(round(val_freecad, 4)) + ') → ' + ('OK' if ok else 'ECHEC'))
 
-        # Recherche du meilleur joint
+        # Recherche du meilleur joint (basée sur d_alesage_calcul ci-dessus)
         plage_sq = get_plage_squeeze(type_montage)
         sq_min   = plage_sq['min']
         sq_max   = plage_sq['max']
@@ -1503,7 +2893,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         def _essayer(std, ser):
             try:
                 r = calculer_gorge(
-                    diametre_piece_mm = d_gorge_nouveau,
+                    diametre_piece_mm = d_alesage_calcul,
                     position          = position,
                     type_montage      = type_montage,
                     standard          = std,
@@ -1563,13 +2953,31 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             except Exception:
                 pass
 
-        # Construire le message de confirmation
-        ligne1 = ('Le diamètre de la pièce complémentaire a changé :\n'
-                  '  Ancien : ' + '{:.3f}'.format(d_comp_ancien) + ' mm'
-                  '  →  Courant : ' + '{:.3f}'.format(d_comp_courant) + ' mm\n\n')
-        ligne2 = ('Le diamètre de la pièce portant la gorge a été ajusté :\n'
-                  '  ' + param_gorge + ' = ' + '{:.3f}'.format(d_gorge_nouveau)
-                  + ' mm  (jeu radial = ' + '{:.3f}'.format(jeu_radial) + ' mm)\n\n')
+        # Construire le message de confirmation — décrit UNIQUEMENT le(s)
+        # côté(s) qui a/ont réellement changé.
+        parties_msg = []
+        if derive_comp:
+            parties_msg.append(
+                'Le diamètre de la pièce complémentaire a changé :\n'
+                '  Ancien : ' + '{:.3f}'.format(d_comp_ancien) + ' mm'
+                '  →  Courant : ' + '{:.3f}'.format(d_comp_courant) + ' mm'
+            )
+        if derive_gorge:
+            _gorge_aff = d_gorge_courant if d_gorge_courant is not None else d_gorge_ancien
+            parties_msg.append(
+                'Le diamètre de la pièce portant la gorge (' + param_gorge + ') a changé :\n'
+                '  Ancien : ' + '{:.3f}'.format(d_gorge_ancien) + ' mm'
+                '  →  Courant : ' + '{:.3f}'.format(_gorge_aff) + ' mm\n'
+                '  (valeur conservée telle quelle, non réécrite)'
+            )
+        ligne1 = '\n\n'.join(parties_msg) + '\n\n'
+
+        if ecrire_gorge:
+            ligne2 = ('Le diamètre de la pièce portant la gorge a été ajusté :\n'
+                      '  ' + param_gorge + ' = ' + '{:.3f}'.format(d_gorge_nouveau)
+                      + ' mm  (jeu radial = ' + '{:.3f}'.format(jeu_radial) + ' mm)\n\n')
+        else:
+            ligne2 = ''
 
         if resultat_propose:
             r = resultat_propose
@@ -1596,8 +3004,9 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         )
 
         if reponse != QtWidgets.QMessageBox.Ok:
-            # Annulé : remettre l'ancien paramètre FreeCAD
-            if body_gorge and param_gorge and val_gorge_avant is not None:
+            # Annulé : remettre l'ancien paramètre FreeCAD (uniquement si on
+            # avait anticipé une écriture)
+            if ecrire_gorge and body_gorge and param_gorge and val_gorge_avant is not None:
                 set_valeur_parametre(body_gorge, param_gorge, val_gorge_avant)
             return None
 
@@ -1606,12 +3015,10 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         meta_updated['standard']      = standard_propose
         meta_updated['serie']         = serie_proposee
         meta_updated['d_comp_ref_mm'] = d_comp_courant
-        # d_gorge_ref_mm = diamètre de la pièce portant la gorge (côté opposé au comp)
-        jeu_mm = float(meta.get('jeu_radial_mm', 0.0))
-        if position == 'arbre':
-            meta_updated['d_gorge_ref_mm'] = d_comp_courant - 2.0 * jeu_mm
-        else:
-            meta_updated['d_gorge_ref_mm'] = d_comp_courant + 2.0 * jeu_mm
+        # d_gorge_ref_mm = diamètre courant réel de la pièce portant la
+        # gorge, que ce soit une valeur recalculée (ecrire_gorge) ou sa
+        # valeur déjà à jour (dérive côté gorge, jamais écrasée)
+        meta_updated['d_gorge_ref_mm'] = d_gorge_nouveau
         if resultat_propose:
             r = resultat_propose
             meta_updated['d2_mm']            = float(r.d2)
@@ -1646,20 +3053,27 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             return
         try:
             # Cibler le body ORing (tore 3D) si disponible
-            body_name = meta.get('body_oring_name', '')
-            target = None
-            if body_name:
-                target = self._doc.getObject(body_name)
+            from .metadata import body_oring_de
+            target = body_oring_de(part, meta, doc_repli=self._doc)
             # Fallback : le Part conteneur
             if target is None:
                 target = part
 
+            # Document de la CIBLE : le corps ORing d'un composant lié vit
+            # dans le document source, pas dans l'assemblage (06/09/2026).
+            _doc_cible_hl = getattr(target, 'Document', None) or self._doc
             self._highlighted_obj_name = target.Name
-            self._highlighted_doc_name = self._doc.Name
+            self._highlighted_doc_name = _doc_cible_hl.Name
 
+            # ... mais le désigner dans la vue 3D demande autre chose que son
+            # document : la vue de l'assemblage affiche des INSTANCES de liens.
+            # Le correctif du 06/09 avait corrigé la cible, pas l'adressage —
+            # d'où le symptôme « pas de highlight » du 13/09/2026.
+            from .utils import selectionner as _selectionner
             Gui.Selection.clearSelection()
-            Gui.Selection.addSelection(self._doc.Name, target.Name)
-            print(f"[ORing] Highlight activé : {target.Label}")
+            _atteint = _selectionner(target, self._doc)
+            print(f"[ORing] Highlight activé : {target.Label} "
+                  f"(chemin {'construit' if _atteint else 'NON construit'})")
         except Exception as e:
             print(f"[ORing] _debut_highlight AVERT : {e}")
 
@@ -1679,14 +3093,54 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         except Exception as e:
             print(f"[ORing] _fin_highlight AVERT : {e}")
 
-    def _ouvrir_depuis_selection(self, part):
-        """
-        Ouvre directement le dialogue en mode modification sur l'onglet 2
-        pour le joint ORing ``part``.
+    def _reprendre_modification_esquisse(self, reprise):
+        """Rouvre en modification le joint pilote, Ø complémentaire pré-rempli.
 
-        Équivalent à : onglet 3 → sélectionner le joint → clic Modifier.
-        Appelée depuis lancer_dialogue() quand un joint est sélectionné
-        avant le lancement de la macro.
+        Suite de `_preparer_reprise_modification_esquisse()` : le paramètre
+        d'esquisse a déjà été remis à sa valeur d'avant, il n'y a donc plus
+        de dérive et `_ouvrir_depuis_selection()` ouvre le joint normalement,
+        sans passer par `_recalculer_apres_derive()`.
+
+        Il ne reste qu'à inscrire la valeur voulue par l'utilisateur dans
+        `spin_d_comp_modif` — le champ que le dialogue utilise déjà pour
+        recalculer la gorge ET mettre à jour la pièce complémentaire. La
+        validation par l'utilisateur fait le reste, exactement comme une
+        modification saisie dans la macro.
+
+        Appelée en différé (QTimer.singleShot) depuis lancer_dialogue(),
+        comme l'ouverture sur joint pré-sélectionné : `_ouvrir_depuis_selection`
+        pose des widgets, la boucle Qt doit avoir démarré.
+        """
+        try:
+            self._ouvrir_depuis_selection(reprise['part'])
+            if hasattr(self, 'spin_d_comp_modif'):
+                self.lbl_d_comp_modif.setVisible(True)
+                self.spin_d_comp_modif.setVisible(True)
+                # setValue déclenche _on_dims_change : l'aperçu se met à jour
+                # tout seul, l'utilisateur voit la gorge proposée avant de
+                # valider.
+                self.spin_d_comp_modif.setValue(float(reprise['valeur_comp']))
+            self._tabs.setCurrentIndex(1)
+        except Exception as erreur:
+            print("[ORing] Reprise modification esquisse ERREUR : %s" % erreur)
+
+    def _ouvrir_depuis_selection(self, part, garder_onglet3=False):
+        """
+        Ouvre directement le dialogue en mode modification pour le joint
+        ORing ``part`` (pré-remplissage des onglets 1/2, mode modification
+        actif) — sans changer d'onglet ni toucher au verrouillage de ligne
+        du tableau lorsque ``garder_onglet3`` est vrai.
+
+        - ``garder_onglet3=False`` (par défaut) : bascule sur l'onglet 2 et
+          déverrouille le tableau — comportement historique, utilisé par
+          lancer_dialogue() quand un joint est sélectionné avant le
+          lancement de la macro (l'utilisateur n'est pas encore dans le
+          dialogue, il n'y a pas de ligne de tableau à préserver).
+        - ``garder_onglet3=True`` : reste sur l'onglet courant et conserve
+          le verrouillage de ligne déjà posé par le clic dans le tableau —
+          utilisé par _on_selection_ligne_joint3 (clic sur une ligne de
+          l'onglet 3 : le joint cliqué devient le joint édité en arrière-
+          plan, sans quitter l'onglet 3 ni perdre sa surbrillance).
         """
         try:
             from .metadata import lire_metadonnees, verifier_derives
@@ -1713,25 +3167,39 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 if meta_maj is None:
                     self._part_en_modification = None
                     self._d_comp_ref_modif = 0.0
+                    self._d_gorge_drift_ref_modif = 0.0
                     return
                 meta = meta_maj
                 self._d_comp_ref_modif = float(
                     meta.get('d_comp_ref_mm', self._d_comp_ref_modif)
                 )
+                # BUGFIX (03/09/2026) : même logique que _recalculer_apres_derive
+                # (déjà corrigée le 02/09/2026) pour savoir si c'est le côté gorge
+                # qui doit rester la référence pour la suite de la session.
+                _dg = derive_info.get('delta_gorge')
+                if _dg is not None and _dg > 0.001:
+                    self._d_gorge_drift_ref_modif = float(meta.get('d_gorge_ref_mm', 0.0))
+                else:
+                    self._d_gorge_drift_ref_modif = 0.0
         except Exception as e:
             print(f"[ORing] _ouvrir_depuis_selection dérive AVERT : {e}")
 
-        # Même séquence que _on_clic_modifier
-        try:
-            self.table_joints.deverrouiller()
-        except Exception:
-            pass
+        # Même séquence que _on_clic_modifier — sauf déverrouillage/bascule
+        # d'onglet, à éviter quand on reste sur l'onglet 3 (voir docstring).
+        if not garder_onglet3:
+            try:
+                self.table_joints.deverrouiller()
+            except Exception:
+                pass
         self._meta_en_cours = meta   # pour _debut_highlight dans _entrer_mode_modification
+        self._meta_avant_modif = dict(meta)  # snapshot pour détecter/annuler des modifs (onglet 3)
         self._etendre_listes_bodies_modif(meta)
         self._prefill_depuis_meta(meta)
         self._entrer_mode_modification(part, meta)
-        self._tabs.setCurrentIndex(1)   # onglet 2 (index 1)
-        print(f"[ORing] Ouverture directe en mode modification : {part.Label}")
+        if not garder_onglet3:
+            self._tabs.setCurrentIndex(1)   # onglet 2 (index 1)
+        print(f"[ORing] Ouverture directe en mode modification : {part.Label}"
+              + ("" if not garder_onglet3 else " (onglet 3 conservé)"))
 
     def _on_clic_modifier(self):
         """
@@ -1766,7 +3234,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             return
         meta = lire_metadonnees(part)
         if not meta:
-            message_erreur("ORing", "Impossible de lire les métadonnées de ce joint.")
+            message_erreur("ORing", tr("Cannot read this seal's metadata."))
             return
 
         # Initialiser AVANT _prefill_depuis_meta pour que _get_diametre_calcul()
@@ -1789,6 +3257,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     # Annulé par l'utilisateur — réinitialiser et ne pas ouvrir
                     self._part_en_modification = None
                     self._d_comp_ref_modif = 0.0
+                    self._d_gorge_drift_ref_modif = 0.0
                     return
                 meta = meta_maj   # pre-fill avec les valeurs recalculées
                 # CRUCIAL : resynchroniser _d_comp_ref_modif avec le nouveau
@@ -1797,12 +3266,19 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 self._d_comp_ref_modif = float(
                     meta.get('d_comp_ref_mm', self._d_comp_ref_modif)
                 )
+                # BUGFIX (03/09/2026) : idem _ouvrir_depuis_selection ci-dessus.
+                _dg = derive_info.get('delta_gorge')
+                if _dg is not None and _dg > 0.001:
+                    self._d_gorge_drift_ref_modif = float(meta.get('d_gorge_ref_mm', 0.0))
+                else:
+                    self._d_gorge_drift_ref_modif = 0.0
         except Exception as e_der:
             print('[ORing dérive] AVERT : ' + str(e_der))
 
         # Retirer le highlight verrouillé : on quitte la vue tableau
         self.table_joints.deverrouiller()
         self._meta_en_cours = meta   # pour _debut_highlight dans _entrer_mode_modification
+        self._meta_avant_modif = dict(meta)  # snapshot pour détecter/annuler des modifs (onglet 3)
         # En mode modification, le body portant la gorge peut avoir tous ses LCS
         # occupés (par d'autres joints) → lister_bodies_valides_gorge l'exclut.
         # On élargit temporairement la liste des deux widgets pour que _prefill
@@ -1811,6 +3287,284 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         self._prefill_depuis_meta(meta)
         self._entrer_mode_modification(part, meta)
         self._tabs.setCurrentIndex(1)   # basculer sur onglet 2
+
+    # ------------------------------------------------------------------
+    # Comportement onglet 3 : "le joint sélectionné est le joint édité"
+    # ------------------------------------------------------------------
+
+    def _part_pour_ligne_table(self, row):
+        """
+        Résout le Part ORing correspondant à la ligne ``row`` du tableau de
+        l'onglet 3, de façon robuste au tri des colonnes (lecture du Name
+        stocké en UserRole sur la 1ère cellule, comme dans _on_clic_modifier),
+        avec repli sur ``_parts_liste`` si l'UserRole est absent.
+        Retourne None si la ligne est hors bornes ou introuvable.
+        """
+        if row is None or row < 0:
+            return None
+        part = None
+        item0 = self.table_joints.item(row, 0)
+        if item0 is not None:
+            part_name = item0.data(QtCore.Qt.UserRole)
+            if part_name and self._doc:
+                part = self._doc.getObject(part_name)
+        if part is None and 0 <= row < len(self._parts_liste):
+            part = self._parts_liste[row]
+        return part
+
+    def _champs_calcul_modifies(self) -> bool:
+        """
+        Indique si un des champs qui influencent le calcul (contexte,
+        matériau, standard/série, squeeze, jeu radial, diamètre de la pièce
+        complémentaire) a été modifié depuis l'entrée en édition du joint
+        courant (self._meta_avant_modif).
+
+        Les widgets de sélection body/LCS/paramètre nommé ne sont volontai-
+        rement PAS comparés : ils sont gelés en mode modification (voir
+        _appliquer_verrous_modification) et ne font pas partie du "paramètre
+        du joint" au sens de la spec.
+
+        Retourne False si aucun joint n'est en cours de modification.
+        """
+        meta = self._meta_avant_modif
+        if meta is None:
+            return False
+
+        def _diff_float(valeur_actuelle, cle, tol):
+            try:
+                return abs(float(valeur_actuelle) - float(meta.get(cle, 0.0))) > tol
+            except Exception:
+                return True
+
+        # Diagnostic (silencieux par défaut, ORING_DEBUG=1 pour l'activer) :
+        # affiche le champ en cause dès qu'un écart est détecté. Conservé
+        # après l'audit du 2026-08-28 (bouton "Mettre à jour" à tort actif —
+        # cause réelle : style CSS sans état ":disabled", voir
+        # _entrer_mode_modification ; cette fonction s'est révélée correcte)
+        # car utile pour un futur diagnostic sur cette logique de comparaison.
+        def _log(champ, actuel, attendu):
+            print(f"[ORing onglet3 diag] champs_modifies: '{champ}' "
+                  f"widget={actuel!r}  meta={attendu!r}")
+
+        try:
+            v = self.combo_position.currentData()
+            a = meta.get('position')
+            if v != a:
+                _log('position', v, a)
+                return True
+            v = self.combo_montage.currentData()
+            a = meta.get('type_montage')
+            if v != a:
+                _log('type_montage', v, a)
+                return True
+            if _diff_float(self.spin_pression.value(), 'pression_bar', 0.05):
+                _log('pression_bar', self.spin_pression.value(), meta.get('pression_bar'))
+                return True
+            if _diff_float(self.spin_temperature.value(), 'temperature_C', 0.5):
+                _log('temperature_C', self.spin_temperature.value(), meta.get('temperature_C'))
+                return True
+            v = self.edit_fluide.text().strip()
+            a = meta.get('fluide', '')
+            if v != a:
+                _log('fluide', v, a)
+                return True
+            v = self.combo_materiau.currentData()
+            a = meta.get('materiau')
+            if v != a:
+                _log('materiau', v, a)
+                return True
+            v = self.combo_standard.currentData()
+            a = meta.get('standard')
+            if v != a:
+                _log('standard', v, a)
+                return True
+
+            # Série : meta['serie'] stocke toujours la série résolue, même en
+            # mode "Auto" (combo_serie.currentData() == ''). On compare donc
+            # le mode Auto/manuel avant de comparer la valeur.
+            _etait_auto = bool(meta.get('serie_auto', False))
+            _serie_ui   = self.combo_serie.currentData() or ''
+            if _etait_auto:
+                if _serie_ui != '':
+                    _log('serie (auto)', _serie_ui, '')
+                    return True
+            elif _serie_ui != meta.get('serie', ''):
+                _log('serie', _serie_ui, meta.get('serie', ''))
+                return True
+
+            if _diff_float(self.spin_squeeze.value(), 'squeeze_cible_pct', 0.05):
+                _log('squeeze_cible_pct', self.spin_squeeze.value(), meta.get('squeeze_cible_pct'))
+                return True
+            if _diff_float(self._get_jeu_radial(), 'jeu_radial_mm', 1e-3):
+                _log('jeu_radial_mm', self._get_jeu_radial(), meta.get('jeu_radial_mm'))
+                return True
+            # Diamètre de la pièce complémentaire (spin_d_comp_modif en mode
+            # modification) : BUGFIX — absent de cette comparaison jusqu'ici,
+            # le bouton "Mettre à jour" ne s'activait donc jamais quand seul
+            # ce diamètre était modifié (aucun des autres champs ne change).
+            if _diff_float(self._get_diametre_calcul(), 'd_comp_ref_mm', 1e-3):
+                _log('d_comp_ref_mm', self._get_diametre_calcul(), meta.get('d_comp_ref_mm'))
+                return True
+        except Exception as e:
+            print(f"[ORing onglet3] _champs_calcul_modifies AVERT : {e}")
+            return False
+        return False
+
+    def _demander_validation_ou_abandon(self, ancien_label: str) -> str:
+        """
+        Affiche le dialogue « paramètres modifiés » demandé par la spec
+        quand l'utilisateur change de joint sélectionné (onglet 3) alors que
+        des paramètres du joint en cours d'édition ont été modifiés.
+
+        Ne propose QUE les deux choix de la spec (pas de bouton d'annulation
+        du changement de sélection) : retourne 'valider' ou 'abandonner'.
+        """
+        boite = QtWidgets.QMessageBox(self)
+        boite.setWindowTitle(tr("ORing — Unsaved changes"))
+        boite.setIcon(QtWidgets.QMessageBox.Question)
+        boite.setText(
+            tr("Parameters of the seal currently being edited ({label}) "
+               "have been changed.\n\n"
+               "What do you want to do before switching to the "
+               "newly selected seal?", label=ancien_label or '?')
+        )
+        btn_valider = boite.addButton(
+            tr("Validate current seal changes"), QtWidgets.QMessageBox.AcceptRole)
+        btn_abandon = boite.addButton(
+            tr("Discard current seal changes"), QtWidgets.QMessageBox.DestructiveRole)
+        boite.setDefaultButton(btn_abandon)
+        boite.setEscapeButton(btn_abandon)
+        boite.exec_()
+        return 'valider' if boite.clickedButton() is btn_valider else 'abandonner'
+
+    def _resynchroniser_ligne_verrouillee(self, part):
+        """
+        Reverrouille dans le tableau la ligne correspondant à ``part``.
+        Utilisée quand un changement de sélection en onglet 3 est annulé
+        (ex. : "Valider" refusé/échoué) pour que le highlight de la ligne
+        reflète à nouveau le joint réellement en cours d'édition.
+        """
+        if not hasattr(self, 'table_joints') or part is None:
+            return
+        for i, p in enumerate(self._parts_liste):
+            if p.Name == part.Name:
+                self.table_joints.verrouiller_ligne(i)
+                return
+
+    def _on_selection_ligne_joint3(self, row):
+        """
+        Appelée quand l'utilisateur clique sur une NOUVELLE ligne du tableau
+        de l'onglet 3 (verrouillage d'une ligne différente de la précédente).
+
+        Comportement (spec "Comportement oring") :
+          - Tant qu'aucun paramètre du joint en cours d'édition n'a été
+            modifié (ou qu'aucun joint n'est en cours d'édition), le joint
+            sélectionné devient directement le joint édité (pré-remplissage
+            des onglets 1/2 et mode modification actif) — SANS changer
+            d'onglet : l'utilisateur reste sur l'onglet 3, la ligne cliquée
+            reste seule en surbrillance (verrouillage table + highlight 3D).
+            Le changement d'onglet reste réservé à une action explicite
+            (bouton "Modifier", double-clic).
+          - Si des paramètres ont été modifiés, demande à l'utilisateur de
+            Valider (recalcul + application des valeurs modifiées sur le
+            joint ACTUEL, comme le bouton "Appliquer dans FreeCAD") ou
+            d'Abandonner (restauration des valeurs d'origine) avant de
+            faire du joint nouvellement sélectionné le joint édité (là
+            aussi sans changer d'onglet).
+        """
+        print(f"[ORing onglet3] _on_selection_ligne_joint3(row={row}) — "
+              f"en_cours={self._selection_onglet3_en_cours}  "
+              f"part_modif={'oui' if self._part_en_modification else 'non'}")
+        if self._selection_onglet3_en_cours:
+            return
+        nouveau_part = self._part_pour_ligne_table(row)
+        if nouveau_part is None:
+            print(f"[ORing onglet3] AVERT : aucun Part résolu pour la ligne {row}")
+            return
+        if (self._part_en_modification is not None
+                and nouveau_part.Name == self._part_en_modification.Name):
+            return   # déjà le joint édité — rien à faire
+
+        self._selection_onglet3_en_cours = True
+        try:
+            if self._part_en_modification is not None and self._champs_calcul_modifies():
+                part_avant   = self._part_en_modification
+                ancien_label = (self._meta_avant_modif or {}).get('body_gorge_label', '?')
+                choix = self._demander_validation_ou_abandon(ancien_label)
+
+                if choix == 'valider':
+                    self._joint_en_attente_apres_validation = nouveau_part
+                    # Filet de sécurité : si la chaîne différée normale
+                    # (_onglet_initial, déclenchée par _on_appliquer) ne
+                    # s'exécute pas pour une raison quelconque, on ouvre
+                    # quand même le nouveau joint après un délai généreux.
+                    QtCore.QTimer.singleShot(
+                        3000, self._ouvrir_joint_en_attente_si_necessaire)
+                    self._on_appliquer()
+                    if self._part_en_modification is part_avant:
+                        # _on_appliquer a échoué / a été annulé (body ou LCS
+                        # manquant, doublon détecté, résultat invalide refusé,
+                        # recalcul impossible...) → on reste sur le joint actuel.
+                        self._joint_en_attente_apres_validation = None
+                        self._resynchroniser_ligne_verrouillee(part_avant)
+                        return
+                    # Succès : _on_appliquer a déjà appelé
+                    # _annuler_mode_modification() et programmé (via QTimer) le
+                    # rafraîchissement de l'onglet 3 et la mise à jour des
+                    # joints liés. L'ouverture du joint nouvellement sélectionné
+                    # est différée jusqu'à la fin de cette chaîne — voir
+                    # _onglet_initial / _ouvrir_joint_en_attente_si_necessaire —
+                    # pour éviter toute course avec ce rafraîchissement.
+                    return
+                else:
+                    # Abandon : restaurer les champs du joint actuel avant de
+                    # basculer sur le joint nouvellement sélectionné.
+                    if self._meta_avant_modif is not None:
+                        self._prefill_depuis_meta(self._meta_avant_modif)
+
+            _part_avant_ouverture = self._part_en_modification
+            print(f"[ORing onglet3] → ouverture directe de '{nouveau_part.Label}' "
+                  "(aucune modif en attente)")
+            self._ouvrir_depuis_selection(nouveau_part, garder_onglet3=True)
+            if self._part_en_modification is _part_avant_ouverture:
+                # _ouvrir_depuis_selection n'a pas basculé (métadonnées du
+                # joint nouvellement sélectionné introuvables/illisibles) —
+                # resynchroniser la ligne verrouillée sur l'état réel plutôt
+                # que de laisser le tableau montrer une ligne qui ne
+                # correspond plus au joint effectivement édité (ou pas édité).
+                print("[ORing onglet3] AVERT : _ouvrir_depuis_selection n'a pas "
+                      "basculé le joint édité")
+                if _part_avant_ouverture is not None:
+                    self._resynchroniser_ligne_verrouillee(_part_avant_ouverture)
+                else:
+                    self.table_joints.deverrouiller()
+        finally:
+            self._selection_onglet3_en_cours = False
+
+    def _ouvrir_joint_en_attente_si_necessaire(self):
+        """
+        Si un changement de sélection (onglet 3) a validé les modifications
+        du joint précédent, ouvre maintenant le joint nouvellement sélectionné
+        en édition. Appelée depuis la fin de _onglet_initial (point de
+        synchronisation déjà utilisé par la chaîne différée de
+        _on_appliquer) — et, en filet de sécurité, depuis un QTimer différé
+        posé au moment du "Valider" (voir _on_selection_ligne_joint3).
+        Idempotente : ne fait rien la seconde fois qu'elle est appelée.
+        """
+        part = self._joint_en_attente_apres_validation
+        self._joint_en_attente_apres_validation = None
+        if part is None or self._doc is None:
+            return
+        part_name = part.Name
+
+        def _ouvrir():
+            part_frais = self._doc.getObject(part_name)
+            if part_frais is not None:
+                self._ouvrir_depuis_selection(part_frais, garder_onglet3=True)
+            else:
+                print(f"[ORing onglet3] Joint en attente '{part_name}' introuvable "
+                      "après mise à jour — ouverture annulée")
+        QtCore.QTimer.singleShot(0, _ouvrir)
 
     def _etendre_listes_bodies_modif(self, meta: dict):
         """
@@ -1880,11 +3634,30 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             """Sélectionne body + paramètre + radio dans un WidgetSelectBody."""
             if not hasattr(widget, 'combo_body'):
                 return
-            # 1. Sélectionner le body par Name (stable) puis Label (fallback)
+            # 1. Sélectionner le body par appariement (Name, Label)
+            #
+            # CORRECTIF (06/09/2026) : la boucle retenait le premier item dont
+            # le Name collait. Or le combo liste désormais les bodies de TOUS
+            # les documents du périmètre (Étape A2), et « Body » est le nom
+            # par défaut de tout PartDesign::Body : l'arbre et l'alésage en
+            # ont chacun un. Le mauvais composant pouvait donc être
+            # sélectionné, d'où la lecture d'un diamètre étranger et la fausse
+            # alerte de dérive. apparier_objet() exige Name ET Label, puis se
+            # rabat sur le Label — distinct d'un composant à l'autre.
+            candidats = [widget.combo_body.itemData(i)
+                         for i in range(widget.combo_body.count())]
+            cible = None
+            try:
+                from .metadata import apparier_objet
+                cible, _ = apparier_objet(candidats, name=body_name,
+                                          label=body_label)
+            except Exception as _e_app:
+                print(f"[ORing] appariement body AVERT : {_e_app}")
             widget.combo_body.blockSignals(True)
-            for i in range(widget.combo_body.count()):
-                b = widget.combo_body.itemData(i)
-                if b is not None and (
+            for i, b in enumerate(candidats):
+                if b is None:
+                    continue
+                if (b is cible) if cible is not None else (
                         (body_name and b.Name == body_name)
                         or b.Label == body_label):
                     widget.combo_body.setCurrentIndex(i)
@@ -1910,6 +3683,20 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
 
         # ── Onglet 1 : Contexte ──────────────────────────────────────────
         _set_combo_by_data(self.combo_position, meta.get('position', 'arbre'))
+        # BUGFIX (03/09/2026, signale par l'utilisateur) : _set_combo_by_data
+        # bloque volontairement currentIndexChanged (pour eviter des recalculs
+        # intermediaires pendant le prefill), ce qui empeche aussi
+        # _on_position_change() de se declencher -- les titres des groupes
+        # "Piece portant la gorge" / "Piece complementaire" restaient donc
+        # figes sur leur etat precedent (ou le defaut "arbre" du premier
+        # affichage) au lieu de refleter la position reelle du joint charge.
+        # On resynchronise ici uniquement les titres (pas le recalcul complet
+        # de _on_position_change, deja gere ailleurs dans le prefill).
+        if hasattr(self, 'widget_piece_principale'):
+            _tp, _tc = _libelles_position(self.combo_position.currentData())
+            self.widget_piece_principale.setTitle(_tp)
+            if hasattr(self, 'widget_piece_complementaire'):
+                self.widget_piece_complementaire.setTitle(_tc)
         _set_combo_by_data(self.combo_plan,     meta.get('plan_esquisse', 'XZ'))
         _set_combo_by_data(self.combo_montage,  meta.get('type_montage', 'statique'))
 
@@ -1985,6 +3772,20 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         if hasattr(self, 'combo_mode_jeu'):
             mode_jeu_saved = meta.get('mode_jeu', 'manuel')
             grade_saved    = int(meta.get('grade_arbre', 7))
+            # Valeur manuelle du jeu radial (spin_jeu) : BUGFIX — jamais
+            # restaurée avant ce correctif, _get_jeu_radial() retombait donc
+            # sur la valeur par défaut du widget (0.1, ou un reliquat du
+            # dernier joint édité) en mode Manuel, ce qui faisait apparaître
+            # le bouton "Mettre à jour" comme actif à tort (comparaison de
+            # _champs_calcul_modifies() contre la vraie valeur enregistrée)
+            # et faussait le recalcul déclenché par un clic sur ce bouton.
+            # En mode ISO ('f'/'g'), _on_mode_jeu_change() ci-dessous écrase
+            # cette valeur par le jeu recalculé — c'est le comportement
+            # attendu (widget en lecture seule dans ce mode).
+            if hasattr(self, 'spin_jeu'):
+                self.spin_jeu.blockSignals(True)
+                self.spin_jeu.setValue(float(meta.get('jeu_radial_mm', 0.1)))
+                self.spin_jeu.blockSignals(False)
             # Trouver l'index dans combo_mode_jeu
             for i in range(self.combo_mode_jeu.count()):
                 if self.combo_mode_jeu.itemData(i) == mode_jeu_saved:
@@ -1999,7 +3800,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     self.combo_grade_arbre.setCurrentIndex(i)
                     self.combo_grade_arbre.blockSignals(False)
                     break
-            # Appliquer visibilité + diagramme
+            # Appliquer visibilité + diagramme (recalcule spin_jeu en mode ISO)
             self._on_mode_jeu_change()
 
         # ── Recalcul automatique ─────────────────────────────────────────
@@ -2051,9 +3852,20 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             tr("ORing — Edit: {body}  ·  LCS {lcs}", body=body_label, lcs=lcs_label)
         )
         self.btn_appliquer.setText(tr("Update"))
-        self.btn_appliquer.setEnabled(True)
+        # Rien n'a encore été modifié à l'entrée en édition : le bouton
+        # démarre désactivé. _on_calculer_interne le réactivera dès qu'un
+        # paramètre changera réellement par rapport à self._meta_avant_modif
+        # (voir _champs_calcul_modifies) — et le désactivera de nouveau si
+        # l'utilisateur revient à la valeur d'origine.
+        self.btn_appliquer.setEnabled(False)
+        # BUGFIX (2026-08-28) : sans règle ":disabled", ce style bleu/gras
+        # reste affiché tel quel même quand setEnabled(False) est actif —
+        # le bouton semblait donc "actif" en permanence, qu'il le soit
+        # réellement ou non (le clic, lui, était bien bloqué par Qt sur un
+        # bouton désactivé — d'où "le clic ne produit rien").
         self.btn_appliquer.setStyleSheet(
             "QPushButton { background-color: #1a5276; color: white; font-weight: bold; }"
+            "QPushButton:disabled { background-color: #7a8a99; color: #dddddd; font-weight: normal; }"
         )
         # ── Bouton Annuler modification ───────────────────────────────────
         if not hasattr(self, 'btn_annuler_modif'):
@@ -2553,11 +4365,13 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             except Exception:
                 pass
 
-        # Commit de la transaction
-        try:
-            doc.commitTransaction()
-        except Exception:
-            pass
+        # NOTE (11/09/2026) : il y avait ici un `doc.commitTransaction()`,
+        # sous le commentaire « Commit de la transaction ». Il validait une
+        # transaction JAMAIS OUVERTE — sans effet, et le commentaire était
+        # faux. La transaction de cette propagation est désormais tenue par
+        # son appelant, `_travail_lourd()` dans _on_appliquer_interne(), qui
+        # sait aussi l'abandonner en cas d'échec. Voir action 1 de
+        # plan_transposition_swaging.md.
         _n_std = len(_changements_standard)
         print(f"[ORing lies] TOTAL : {_time.time()-_t_total:.2f}s pour {len(derives)} joint(s)"
               + (f"  —  {_n_std} changement(s) de standard" if _n_std else ""))
@@ -2575,26 +4389,19 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         _restaurer_snapshot(self._doc)
         try:
             from .oring_3d  import appliquer_couleur_materiau
-            from .metadata  import lister_parts_oring, lire_metadonnees
+            from .metadata  import (lister_parts_oring, lire_metadonnees,
+                                    body_oring_de)
             n_ok = 0
             for _p in lister_parts_oring(self._doc):
                 try:
                     _m   = lire_metadonnees(_p)
-                    _nom = _m.get('body_oring_name', '')
-                    _b   = self._doc.getObject(_nom) if _nom else None
-                    if _b is None:
-                        # Fallback : chercher dans le Group du Part
-                        for _child in getattr(_p, 'Group', []):
-                            if (_child.TypeId == 'PartDesign::Body'
-                                    and _child.Label.startswith('ORing')):
-                                _b = _child
-                                break
+                    _b   = body_oring_de(_p, _m, doc_repli=self._doc)
                     if _b is not None:
                         appliquer_couleur_materiau(_b, _m.get('materiau', ''))
                         # Mettre à jour le snapshot
                         try:
                             _vo = _b.ViewObject
-                            _visual_snapshot[_b.Name] = {
+                            _visual_snapshot[_cle_visuelle(_b)] = {
                                 'ShapeColor':   tuple(getattr(_vo, 'ShapeColor', (0.8, 0.8, 0.8))),
                                 'Transparency': 0,
                             }
@@ -2637,7 +4444,17 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
 
         self._appliquer_verrous_modification(verrouiller=False)
         self._part_en_modification = None
+        self._meta_avant_modif = None
         self._d_comp_ref_modif = 0.0
+        self._d_gorge_drift_ref_modif = 0.0
+        # Resynchroniser "Valeur lue" + texte du combo "Paramètre Ø" des
+        # deux widgets pièces sur les valeurs réellement stockées dans le
+        # document (le snapshot vient d'être restauré ci-dessus) — annule
+        # toute prévisualisation affichée pendant le mode modification.
+        if hasattr(self, 'widget_piece_principale'):
+            self.widget_piece_principale._on_param_change()
+        if hasattr(self, 'widget_piece_complementaire'):
+            self.widget_piece_complementaire._on_param_change()
         # Masquer le spin "nouveau Ø comp." (spécifique au mode modification)
         if hasattr(self, 'spin_d_comp_modif'):
             self.spin_d_comp_modif.setVisible(False)
@@ -2684,6 +4501,12 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             widgets_a_geler.append(self.edit_fluide)
         if hasattr(self, 'combo_lcs'):
             widgets_a_geler.append(self.combo_lcs)
+        # BUGFIX (03/09/2026, signale par l'utilisateur) : le bouton
+        # "Create from 3D edge" doit etre gele en meme temps que
+        # combo_lcs -- le LCS existe deja pour un joint en modification,
+        # il ne doit pas pouvoir en recreer un autre.
+        if hasattr(self, 'btn_creer_lcs_arete'):
+            widgets_a_geler.append(self.btn_creer_lcs_arete)
         if hasattr(self, 'widget_piece_principale'):
             widgets_a_geler.append(self.widget_piece_principale)
         if hasattr(self, 'widget_piece_complementaire'):
@@ -3017,13 +4840,34 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                         d1_res = res.get('d1', 0.0)
                         # Aligner sur le seuil bloquant de calcul.py (max_bloquant=8%)
                         # → grisé seulement si physiquement impossible, orange si 5–8%
+                        #
+                        # NOTE (audit UX, point 2.7) : la clé lue ici était auparavant
+                        # _pc()['stretch']['arbre']['max_bloquant'], qui n'existe pas
+                        # dans parametres_calcul.json (max_bloquant vit dans la section
+                        # top-level 'stretch_global', pas sous 'stretch'.'arbre'). Le
+                        # try échouait donc SYSTÉMATIQUEMENT et retombait sur le repli
+                        # codé en dur — le combo "Série" utilisait de fait toujours
+                        # 8.0/3.0 en dur, jamais la valeur du JSON. Chemin corrigé
+                        # ci-dessous pour pointer vers la même source que calcul.py.
                         try:
                             from .joints import _params_calcul as _pc
-                            _st = _pc()['stretch']
-                            BLOQUANT = _st['arbre']['max_bloquant'] if position == 'arbre' else 999
-                            COMPR_MAX = _st['alesage']['compression_max'] if position == 'alesage' else 999
+                            _params_json = _pc()
+                            BLOQUANT  = (_params_json['stretch_global']['max_bloquant']
+                                         if position == 'arbre' else 999)
+                            COMPR_MAX = (_params_json['stretch']['alesage']['compression_max']
+                                         if position == 'alesage' else 999)
+                            # Seuil orange alesage : etait code en dur a 1.5 %
+                            # plus bas, ce qui signalait "hors plage ideale"
+                            # quasiment toute compression realisable avec les
+                            # d1 normalises (1-3 %) -- et contredisait le
+                            # panneau de synthese. Desormais lu dans
+                            # parametres_calcul.json, comme le reste.
+                            COMPR_AVERT = (_params_json['stretch']['alesage']
+                                           .get('compression_avertissement',
+                                                COMPR_MAX)
+                                           if position == 'alesage' else 999)
                         except Exception:
-                            BLOQUANT, COMPR_MAX = 8.0, 3.0
+                            BLOQUANT, COMPR_MAX, COMPR_AVERT = 8.0, 3.0, 2.0
                         if position == 'arbre':
                             impossible = sp < -0.5 or sp > BLOQUANT
                         else:
@@ -3037,7 +4881,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                             else:
                                 raison = (f'd1={d1_res:.1f} < D_arbre' if sp > 0.5
                                           else f'compr. {-sp:.0f}% > {COMPR_MAX:.0f}%')
-                        elif sp > 5.0 or (position != 'arbre' and -sp > 1.5):
+                        elif sp > 5.0 or (position != 'arbre' and -sp > COMPR_AVERT):
                             # Compatible mais hors plage idéale → orange
                             raison = f'⚠ stretch {sp:.1f}%' if position == 'arbre' else f'⚠ compr. {-sp:.1f}%'
                         elif res.get('avertissements'):
@@ -3183,7 +5027,16 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             lcs_layout = QtWidgets.QFormLayout(grp_lcs)
             self.combo_lcs = QtWidgets.QComboBox()
             self.combo_lcs.addItem(tr("— select —"), None)
-            lcs_layout.addRow(tr("LCS:"), self.combo_lcs)
+            row_lcs = QtWidgets.QHBoxLayout()
+            row_lcs.addWidget(self.combo_lcs, 1)
+            self.btn_creer_lcs_arete = QtWidgets.QPushButton(tr("🎯 Create from 3D edge"))
+            self.btn_creer_lcs_arete.setToolTip(tr(
+                "Select a circular edge in the 3D view, then click here\n"
+                "to create a new LCS attached to it."
+            ))
+            self.btn_creer_lcs_arete.clicked.connect(self._on_creer_lcs_depuis_arete)
+            row_lcs.addWidget(self.btn_creer_lcs_arete)
+            lcs_layout.addRow(tr("LCS:"), row_lcs)
             note_lcs = QtWidgets.QLabel(tr("LCS XZ plane = part Z axis."))
             note_lcs.setStyleSheet("font-style: italic;")
             lcs_layout.addRow(note_lcs)
@@ -3269,6 +5122,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             self.spin_jeu.setRange(0.0, 5.0)
             self.spin_jeu.setSuffix(" mm")
             self.spin_jeu.setDecimals(3)
+            self.spin_jeu.setSingleStep(0.1)
             self.spin_jeu.setValue(0.1)
             self.spin_jeu.setToolTip(tr(
                 "Radial clearance between shaft and bore.\n"
@@ -3291,6 +5145,13 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             # Connexions
             self.widget_piece_principale.combo_body.currentIndexChanged.connect(
                 self._on_piece_principale_change
+            )
+            # FIX : bascule Rayon/Diamètre de la pièce principale reste
+            # active même en mode modification (widget gelé, cf. FIX #6
+            # dans _appliquer_verrous_modification) — elle doit donc
+            # rafraîchir dynamiquement la prévisualisation "Valeur lue".
+            self.widget_piece_principale.radio_diametre.toggled.connect(
+                self._on_dims_change
             )
             self.widget_piece_complementaire.combo_body.currentIndexChanged.connect(
                 self._on_dims_change
@@ -3401,6 +5262,13 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         position = self.combo_position.currentData()
         d_comp = self._get_diametre_calcul()
         jeu    = self.spin_jeu.value()
+        # Prévisualise dynamiquement la valeur qui sera écrite dans le
+        # paramètre FreeCAD de la pièce complémentaire (mode modification
+        # uniquement — cf. section 0b de _on_calculer), en tenant compte
+        # du mode Rayon/Diamètre. Le widget pièce complémentaire est gelé
+        # en mode modification et ne se rafraîchit donc plus tout seul
+        # quand "Nouveau Ø pièce comp." change.
+        self._maj_valeur_lue_complementaire(d_comp)
         if d_comp and d_comp > 0:
             if position == 'arbre':
                 d_princ = d_comp - 2.0 * jeu
@@ -3409,6 +5277,14 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 d_princ = d_comp + 2.0 * jeu
                 label   = f"D_alesage = {d_comp:.3f} + 2×{jeu:.3f} = {d_princ:.3f} mm"
             self.label_d_principale_derive.setText(label)
+            # Prévisualise dynamiquement la valeur qui sera écrite dans le
+            # paramètre FreeCAD de la pièce principale ("Valeur lue" sous
+            # "Paramètre Ø"), en tenant compte du mode Rayon/Diamètre.
+            # Nécessaire notamment en mode modification, où le widget
+            # pièce principale est gelé (setEnabled(False)) et ne se
+            # rafraîchit donc plus tout seul quand "Nouveau Ø pièce comp."
+            # ou "Jeu radial" changent.
+            self._maj_valeur_lue_principale(d_princ)
         else:
             self.label_d_principale_derive.setText("—")
 
@@ -3435,6 +5311,92 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         if self._saisie_complete():
             self._on_calculer()
 
+    def _maj_valeur_lue_principale(self, d_princ):
+        """
+        Met à jour dynamiquement le label "Valeur lue" (sous "Paramètre Ø")
+        du widget pièce principale pour prévisualiser la valeur qui sera
+        réellement écrite dans le paramètre FreeCAD — en Rayon ou en
+        Diamètre selon l'état du radio du widget — dès que "Nouveau Ø
+        pièce comp." ou "Jeu radial" changent.
+
+        La formule reprend exactement celle utilisée à l'application
+        (section 0 de _on_calculer) : valeur_param = d_princ/2 si le
+        paramètre est un rayon, sinon d_princ.
+
+        Sans effet si aucun body/paramètre n'est sélectionné dans le
+        widget pièce principale (rien à prévisualiser).
+        """
+        if not hasattr(self, 'widget_piece_principale'):
+            return
+        w = self.widget_piece_principale
+        if not hasattr(w, 'label_valeur'):
+            return
+        if not w.combo_param.currentData():
+            return
+        if d_princ is None or d_princ <= 0:
+            return
+        est_rayon = w.radio_rayon.isChecked()
+        valeur_param = d_princ / 2.0 if est_rayon else d_princ
+        if est_rayon:
+            texte = f"r {valeur_param:.2f} mm  →  Ø {valeur_param*2:.2f} mm"
+        else:
+            texte = f"Ø {valeur_param:.2f} mm"
+        w.label_valeur.setText(texte)
+        # Le texte affiché par le combo "Paramètre Ø" lui-même (ex.
+        # "RArbre1  (20.450 mm)") est construit une seule fois au
+        # peuplement (_on_body_change) à partir de la valeur alors lue
+        # dans le document — il ne se rafraîchit pas tout seul ensuite.
+        # On met à jour uniquement le texte affiché de l'entrée
+        # actuellement sélectionnée (setItemText ne change pas la donnée
+        # associée ni ne déclenche currentIndexChanged).
+        nom = w.combo_param.currentData()
+        idx = w.combo_param.currentIndex()
+        if nom and idx >= 0:
+            w.combo_param.setItemText(idx, f"{nom}  ({valeur_param:.3f} mm)")
+
+    def _maj_valeur_lue_complementaire(self, d_comp):
+        """
+        En mode modification, prévisualise dynamiquement dans le "Valeur
+        lue" du widget pièce complémentaire (gelé) la valeur qui sera
+        réellement écrite dans son paramètre FreeCAD si "Nouveau Ø pièce
+        comp." est appliqué — en Rayon ou en Diamètre selon l'état du
+        radio du widget.
+
+        La formule reprend exactement celle utilisée à l'application
+        (section 0b de _on_calculer) : valeur = d_comp/2 si le paramètre
+        est un rayon, sinon d_comp.
+
+        Sans effet en mode création : le widget y reste directement
+        modifiable par l'utilisateur et son "Valeur lue" est déjà tenue
+        à jour par sa propre logique interne (WidgetSelectBody._on_param_change).
+        """
+        if self._part_en_modification is None:
+            return
+        if not (hasattr(self, 'spin_d_comp_modif')
+                and self.spin_d_comp_modif.isVisible()):
+            return
+        if not hasattr(self, 'widget_piece_complementaire'):
+            return
+        w = self.widget_piece_complementaire
+        if not hasattr(w, 'label_valeur'):
+            return
+        if not w.combo_param.currentData():
+            return
+        if d_comp is None or d_comp <= 0:
+            return
+        est_rayon = w.radio_rayon.isChecked()
+        valeur_param = d_comp / 2.0 if est_rayon else d_comp
+        if est_rayon:
+            texte = f"r {valeur_param:.2f} mm  →  Ø {valeur_param*2:.2f} mm"
+        else:
+            texte = f"Ø {valeur_param:.2f} mm"
+        w.label_valeur.setText(texte)
+        # Cf. _maj_valeur_lue_principale : rafraîchit aussi le texte du
+        # combo "Paramètre Ø" pour l'entrée actuellement sélectionnée.
+        nom = w.combo_param.currentData()
+        idx = w.combo_param.currentIndex()
+        if nom and idx >= 0:
+            w.combo_param.setItemText(idx, f"{nom}  ({valeur_param:.3f} mm)")
 
     def _on_lcs_change(self, _=None):
         """
@@ -3453,9 +5415,142 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             if doc is None:
                 return
             Gui.Selection.clearSelection()
-            Gui.Selection.addSelection(doc.Name, lcs.Name)
+            # Le LCS d'un composant lié vit dans SON document, pas dans
+            # l'assemblage (06/09/2026) — sinon « Selection.cpp: Object not
+            # found ». En mono-document, c'est le même document.
+            # Et le désigner dans la vue demande le chemin à travers le lien
+            # (13/09/2026) : selectionner() s'en charge, à l'identique en
+            # mono-document.
+            from .utils import selectionner as _selectionner
+            _selectionner(lcs, doc)
         except Exception as _e:
             pass   # non bloquant — juste une aide visuelle
+
+    def _on_creer_lcs_depuis_arete(self):
+        """Bouton « Create from 3D edge » (spec §3.4) : masque le
+        dialogue, attend un clic sur une arête circulaire en vue 3D, puis
+        ouvre l'assistant de création du LCS (voir _attendre_selection_3d
+        — le dialogue étant modal, la vue 3D n'est interactive que
+        pendant ce masquage temporaire). Raccourci additif — combo_lcs
+        (LCS existant) reste la référence."""
+        if not FREECAD_DISPONIBLE:
+            return
+        body = self.widget_piece_principale.get_body()
+        if body is None:
+            QtWidgets.QMessageBox.warning(
+                self, tr("Create LCS from edge"),
+                tr("Select the main part (Body) above first."))
+            return
+        _attendre_selection_3d(
+            self,
+            tr("Click a circular edge in the 3D view.\n"
+               "The dialog will reappear automatically."),
+            lambda arete_info: self._traiter_creation_lcs_depuis_arete(body, arete_info))
+
+    def _traiter_creation_lcs_depuis_arete(self, body, arete_info=None,
+                                            forcer_choix_explicite=False):
+        """Suite de _on_creer_lcs_depuis_arete() une fois le dialogue
+        réaffiché après le clic (ou l'annulation) en vue 3D. arete_info
+        optionnel (objet_proprietaire, nom_edge, edge) : si fourni (cas
+        d'une arête pré-sélectionnée avant le lancement de la macro, voir
+        _demarrer_depuis_arete_preselectionnee()), utilisé directement
+        plutôt que relu depuis la sélection 3D courante. forcer_choix_explicite
+        (BUGFIX 04/09/2026) : voir _DialogCreerLCSDepuisArete.
+
+        Retourne True si un LCS a été créé ET validé, False dans tous les
+        autres cas (aucune arête, échec de création, annulation). Le bouton
+        « 🎯 Create from 3D edge » ignore cette valeur ; elle sert au flux
+        3.4bis, où une annulation doit arrêter la macro (demande
+        utilisateur du 10/09/2026)."""
+        if arete_info is None:
+            arete_info = resoudre_arete_selectionnee()
+        if arete_info is None:
+            QtWidgets.QMessageBox.warning(
+                self, tr("Create LCS from edge"),
+                tr("No circular edge was selected.\n"
+                   "Click the button again to retry."))
+            return False
+        objet_proprietaire, nom_edge, _edge = arete_info
+        dlg = _DialogCreerLCSDepuisArete(
+            body, objet_proprietaire, nom_edge, self._doc, parent=self,
+            forcer_choix_explicite=forcer_choix_explicite)
+        if dlg.lcs_cree() is None:
+            return False  # échec de création déjà signalé à l'utilisateur
+        # AMELIORATION (03/09/2026, demande utilisateur) : dlg.exec_()
+        # rendait ce dialogue ApplicationModal, bloquant les paint events
+        # de la vue 3D -- l'apercu temps reel de l'offset (point B, spec
+        # §3.4) etait donc invisible pendant l'ajustement. Remplace par
+        # _afficher_dialogue_non_modal_3d() (show() + QEventLoop locale,
+        # jamais exec_(), + masquage temporaire du dialogue ORing --
+        # meme principe que _attendre_selection_3d() et que
+        # StandardPartSelector/insertion.py::_show_orientation_dialog()).
+        if _afficher_dialogue_non_modal_3d(self, dlg) == QtWidgets.QDialog.Accepted:
+            nouveau_lcs = dlg.lcs_cree()
+            # Tracer ce que l'assistant vient de creer, pour pouvoir le retirer
+            # si l'insertion est abandonnee (regle du 13/09/2026, voir
+            # _nettoyer_lcs_apres_abandon). On enregistre l'IDENTITE -- document,
+            # Name, Label -- et non l'objet : apres un abandon de transaction,
+            # une reference Python peut survivre a un objet que FreeCAD a
+            # retire, et la relire par son document est le seul moyen sur de
+            # savoir s'il existe encore.
+            try:
+                if nouveau_lcs is not None:
+                    self._lcs_crees_session.append(
+                        (nouveau_lcs.Document.Name,
+                         nouveau_lcs.Name,
+                         nouveau_lcs.Label))
+            except Exception as _e_trace:
+                print("[ORing] AVERT suivi du LCS cree impossible : %s"
+                      % _e_trace)
+            # Même mécanisme de rafraîchissement que lors d'un changement de
+            # body principal — le nouveau LCS y apparaît naturellement.
+            self._on_piece_principale_change()
+            for i in range(self.combo_lcs.count()):
+                if self.combo_lcs.itemData(i) is nouveau_lcs:
+                    self.combo_lcs.setCurrentIndex(i)
+                    break
+            return True
+        return False
+
+    def _demarrer_depuis_arete_preselectionnee(self, body, arete_info):
+        """
+        Suite à une arête circulaire pré-sélectionnée en vue 3D avant le
+        lancement de la macro (spec
+        claude/spec_oring_guide_creation_lcs_edge.md §3.4bis, 03/09/2026,
+        demande utilisateur : « si je sélectionne une arete avant l'appel
+        de la macro, cette arete définira la position initiale du lcs »).
+
+        Le corps propriétaire de l'arête est la pièce portant la gorge :
+        pré-sélectionné dans widget_piece_principale (ajouté à la liste au
+        besoin, même s'il ne remplit pas encore les critères habituels —
+        cas d'un corps « vierge » sans LCS ni paramètre nommé), puis
+        l'assistant de création du LCS s'ouvre immédiatement sur cette
+        arête (nom + offset, aperçu temps réel — même mécanisme que le
+        bouton « 🎯 Create from 3D edge »).
+
+        La position (arbre/alésage) reste un choix actif de l'utilisateur,
+        jamais déduite automatiquement de la géométrie.
+
+        Retourne True si l'assistant a abouti à un LCS validé, False s'il a
+        été annulé — l'appelant arrête alors la macro (demande utilisateur
+        du 10/09/2026 : « si j'annule lors du dialogue LCS, la macro devrait
+        s'arrêter et non me proposer le dialogue de la macro »).
+        """
+        self._tabs.setCurrentIndex(1)   # onglet 2, où vit widget_piece_principale
+        self.widget_piece_principale.assurer_body_present(body)
+        # Auto-détection du paramètre Ø/rayon (spec §3.2) sur cette même
+        # arête, AVANT l'assistant LCS -- absente de la version initiale
+        # de cette méthode (signalé par l'utilisateur, test réel du
+        # 03/09/2026 : le paramètre était redemandé manuellement, sans
+        # autodétection, alors que la même arête était déjà connue).
+        self.widget_piece_principale._traiter_selection_arete_detectee(
+            body, arete_info)
+        # BUGFIX (04/09/2026) : forcer_choix_explicite=True -- ce
+        # DialogueORing vient d'etre instancie, combo_position n'a que
+        # sa valeur par defaut ('arbre'), jamais un choix reel fait par
+        # l'utilisateur pour ce joint. Voir _DialogCreerLCSDepuisArete.
+        return self._traiter_creation_lcs_depuis_arete(
+            body, arete_info, forcer_choix_explicite=True)
 
     def _on_piece_principale_change(self, _=None):
         """
@@ -3684,7 +5779,17 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         #   position 'arbre'   → D_comp = D_alesage  → OK directement
         #   position 'alesage' → D_comp = D_arbre    → recalculer D_alesage
         jeu_mm = self._get_jeu_radial()
-        if position == 'alesage':
+        # BUGFIX (03/09/2026, signalé par l'utilisateur) : tant qu'une dérive
+        # côté gorge est en attente (_d_gorge_drift_ref_modif > 0, cf.
+        # _recalculer_apres_derive), sa valeur courante réelle fait foi --
+        # jamais recalculée depuis comp+jeu (qui ignorerait la dérive et
+        # ferait revenir la proposition sur l'ancienne valeur).
+        if self._part_en_modification is not None and self._d_gorge_drift_ref_modif > 0:
+            if position == 'arbre':
+                d_alesage_calcul = self._d_gorge_drift_ref_modif + 2.0 * jeu_mm
+            else:
+                d_alesage_calcul = self._d_gorge_drift_ref_modif
+        elif position == 'alesage':
             d_alesage_calcul = diametre + 2.0 * jeu_mm
         else:
             d_alesage_calcul = diametre
@@ -3745,12 +5850,31 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
         _geom_disponible = (self._resultat.d1 is not None
                             and self._resultat.h  is not None
                             and self._resultat.b  is not None)
-        self.btn_appliquer.setEnabled(_geom_disponible and doc_ok)
+        # En mode modification, ne proposer "Mettre à jour" que si un
+        # paramètre a RÉELLEMENT changé par rapport au joint d'origine —
+        # pas seulement si la géométrie est calculable. Un aller-retour de
+        # valeur (ex. : +1 puis -1 sur un champ) doit désactiver le bouton
+        # de nouveau, puisqu'il n'y a plus rien à mettre à jour.
+        # BUGFIX (03/09/2026, signalé par l'utilisateur) : une dérive côté
+        # gorge en attente (cf. ci-dessus) doit aussi activer le bouton --
+        # avant, il fallait en plus toucher un champ tore (standard/série/
+        # squeeze...) pour que _champs_calcul_modifies() détecte un écart,
+        # alors qu'il y a déjà une correction réelle à enregistrer.
+        _modif_reelle = (
+            (self._champs_calcul_modifies() or self._d_gorge_drift_ref_modif > 0)
+            if self._part_en_modification is not None else True)
+        self.btn_appliquer.setEnabled(_geom_disponible and doc_ok and _modif_reelle)
         # Griser Calculer : recalcul inutile tant que la saisie n'a pas changé
 
     def _formater_resultat(self, r):
         position = self.combo_position.currentData()
-        label_d  = "D_alesage" if position == 'arbre' else "D_arbre"
+        # BUGFIX (05/09/2026, repere en corrigeant la coloration ci-dessus) :
+        # le libelle annoncait "D_alesage" pour une gorge sur arbre, alors que
+        # le stretch y est calcule par rapport au FOND DE GORGE (calcul.py,
+        # d_ref_d1 = D_arbre - 2*h). Aligne sur _maj_synthese(), qui affiche
+        # deja "D_fond" correctement. Aucune valeur numerique n'etait fausse,
+        # seul le nom de la reference l'etait dans le rapport texte.
+        label_d  = "D_fond" if position == 'arbre' else "D_arbre"
         lignes = [
             "=" * 54,
             tr("  Seal  : {std} / series {series}", std=r.standard, series=r.serie),
@@ -3783,6 +5907,79 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
     # ------------------------------------------------------------------
     # Action : Appliquer dans FreeCAD
     # ------------------------------------------------------------------
+    def _nettoyer_lcs_apres_abandon(self):
+        """Retire les LCS creas par l'assistant quand l'insertion est abandonnee.
+
+        REGLE METIER (13/09/2026, demande de l'utilisateur) : « un abandon
+        d'insertion doit aussi inclure la suppression du LCS ».
+
+        Motif : le LCS est cree par l'assistant d'arete AVANT l'ouverture du
+        dialogue, donc avant l'ouverture de la transaction. L'abandon ne le
+        defait pas, et trois tentatives laissaient trois reperes orphelins.
+
+        CE QUI N'EST PAS TOUCHE : le Ctrl+Z. Il reste un geste de
+        l'utilisateur, qui sait ce qu'il defait et peut vouloir garder son
+        repere -- comportement confirme le 11/09/2026. L'abandon sur echec est
+        une decision de la macro, qui promet de remettre le document dans son
+        etat d'avant : c'est cette promesse-la qui est tenue ici.
+
+        Idempotente : la liste est videe d'entree, donc un second appel sur le
+        meme abandon ne fait rien. C'est voulu -- l'abandon est ferme a deux
+        endroits (le gestionnaire d'exception de `_on_appliquer_interne` et
+        `_on_appliquer`), et les deux appellent cette methode.
+
+        Trois gardes, parce que detruire appartient a l'auteur :
+          1. seuls les LCS enregistres a leur creation par l'assistant, dans
+             cette session de dialogue, sont candidats ;
+          2. l'objet relu doit porter le meme Label et etre un systeme de
+             coordonnees -- sinon le nom a ete reutilise, on ne touche a rien ;
+          3. un LCS qu'un joint utilise n'est jamais supprime.
+        """
+        _candidats = getattr(self, '_lcs_crees_session', None) or []
+        if not _candidats:
+            return
+        self._lcs_crees_session = []
+
+        try:
+            _occupes = _lcs_deja_utilises(self._doc)
+        except Exception:
+            _occupes = set()
+
+        _retires = []
+        for _doc_nom, _nom, _label in _candidats:
+            try:
+                _d = App.getDocument(_doc_nom)
+            except Exception:
+                _d = None
+            if _d is None:
+                continue
+            try:
+                _obj = _d.getObject(_nom)
+            except Exception:
+                _obj = None
+            if _obj is None:
+                continue                      # deja retire
+            if getattr(_obj, 'Label', None) != _label:
+                continue                      # garde 2 : nom reutilise
+            if 'CoordinateSystem' not in getattr(_obj, 'TypeId', ''):
+                continue                      # garde 2 : ce n'est plus un LCS
+            if _label in _occupes:
+                continue                      # garde 3 : un joint s'en sert
+            try:
+                _d.removeObject(_nom)
+                _retires.append(_label)
+            except Exception as _e_sup:
+                print("[ORing] AVERT suppression du LCS '%s' impossible : %s"
+                      % (_label, _e_sup))
+
+        if _retires:
+            print("[ORing] Insertion abandonnee : LCS retire(s) - %s"
+                  % ', '.join(_retires))
+            try:
+                self._on_piece_principale_change()
+            except Exception:
+                pass
+
     def _on_appliquer(self):
         """
         Sequence complete :
@@ -3811,20 +6008,93 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             print("[ORing DIAG] _on_appliquer: BLOQUÉ — résultat ou doc manquant")
             return
         self._appliquer_en_cours = True
+
+        # ── Refus d'écrire dans un document chargé partiellement ────────────
+        #
+        # La complétion a lieu au lancement (lancer_dialogue, étape 1b-bis),
+        # mais elle peut avoir échoué, et l'utilisateur peut avoir fermé puis
+        # rouvert un fichier depuis. Le contrôle est donc REFAIT ici, juste
+        # avant la première écriture — c'est le seul endroit où il protège
+        # vraiment.
+        #
+        # Refuser plutôt qu'avertir : FreeCAD avertissait déjà, douze fois
+        # dans la vue Rapport, et l'utilisateur a perdu sa modification quand
+        # même (13/09/2026).
         try:
-            self._on_appliquer_interne()
+            from .utils import (documents_partiels_du_perimetre,
+                                completer_documents_partiels)
+            _restes = documents_partiels_du_perimetre(self._doc)
+            if _restes:
+                # Dernière tentative avant de renoncer.
+                completer_documents_partiels(self._doc)
+                _restes = documents_partiels_du_perimetre(self._doc)
+            if _restes:
+                self._appliquer_en_cours = False
+                QtWidgets.QMessageBox.critical(
+                    self, tr("Partially loaded document"),
+                    tr("The file {fichier} is only partially loaded.\n\n"
+                       "FreeCAD does not save changes made to a partially "
+                       "loaded document: your modification would appear to "
+                       "succeed and be lost when the file is reopened.\n\n"
+                       "Nothing has been modified. Open that file directly "
+                       "(File > Open), then run the macro again.",
+                       fichier=', '.join(_restes)))
+                print('[ORing] ERREUR écriture refusée — document(s) '
+                      'partiel(s) : %s' % ', '.join(_restes))
+                return
+        except Exception as _e_garde:
+            # Une garde qui casse ne doit pas empêcher de travailler : on
+            # trace et on laisse passer, comme avant ce correctif.
+            print('[ORing] AVERT garde document partiel : %s' % _e_garde)
+
+        # Toute l'insertion tient dans UNE transaction : la valider la conserve
+        # en une seule entrée d'annulation (un seul Ctrl+Z la défait), un échec
+        # la défait intégralement.
+        #
+        # Jusqu'au 11/09/2026 il n'y en avait aucune : une sortie en échec de
+        # _on_appliquer_interne() — recalcul raté, ou exception — laissait le
+        # paramètre Ø de l'utilisateur déjà réécrit et les métadonnées posées,
+        # sans aucun joint créé. Le message d'erreur demandait alors à
+        # l'utilisateur d'aller voir lui-même ce qui restait dans son document.
+        #
+        # La frontière est tenue ICI, pas à l'intérieur des 870 lignes de
+        # _on_appliquer_interne : une seule ouverture, une seule fermeture, et
+        # tous les chemins de sortie y passent — y compris l'exception, que le
+        # `except` ci-dessous rattrape pour abandonner avant de la relancer.
+        self._transaction_ouverte = _ouvrir_transaction(tr("Insert O-ring seal"))
+        try:
+            _abouti = self._on_appliquer_interne()
+        except Exception:
+            _fermer_transaction(self._transaction_ouverte, abandon=True)
+            self._transaction_ouverte = False
+            self._nettoyer_lcs_apres_abandon()
+            raise
+        else:
+            _fermer_transaction(self._transaction_ouverte, abandon=not _abouti)
+            self._transaction_ouverte = False
+            if not _abouti:
+                self._nettoyer_lcs_apres_abandon()
         finally:
             self._appliquer_en_cours = False
 
     def _on_appliquer_interne(self):
-        """Corps réel de _on_appliquer, protégé par le guard de réentrance."""
+        """Corps réel de _on_appliquer, protégé par le guard de réentrance.
+
+        Retourne **True si l'insertion a abouti**, False sinon. Cette valeur
+        pilote une décision — `_on_appliquer()` valide ou abandonne la
+        transaction selon elle — donc elle est booléenne sur TOUTES les
+        sorties, jamais un `return` nu : `None` est faux, la décision
+        paraîtrait correcte, et la prochaine sortie ajoutée sans valeur
+        passerait inaperçue (mémorandum §3, incident du 10/09/2026 sur
+        l'arrêt de la macro à l'annulation de l'assistant LCS).
+        """
         print(f"[ORing DIAG] _on_appliquer_interne — "
               f"part_modif={'oui' if self._part_en_modification else 'non'}  "
               f"resultat.valide={getattr(self._resultat,'valide','?')}  "
               f"resultat.d1={getattr(self._resultat,'d1','?')}")
         if not self._resultat or not self._doc:
             print("[ORing DIAG] _on_appliquer_interne: BLOQUÉ — résultat ou doc None")
-            return
+            return False
 
         # ── Recalcul systématique avant application ──────────────────────────
         # Garantit que self._resultat reflète TOUS les paramètres UI courants
@@ -3835,7 +6105,14 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             _d_comp = self._get_diametre_calcul()
             _pos    = self.combo_position.currentData()
             _jeu    = self._get_jeu_radial()
-            _d_al   = (_d_comp + 2.0 * _jeu) if _pos == 'alesage' else _d_comp
+            # BUGFIX (03/09/2026) : même protection qu'en 4. ci-dessus --
+            # sinon ce recalcul "de sécurité" avant application effacerait
+            # la dérive gorge pourtant préservée jusqu'ici.
+            if self._part_en_modification is not None and self._d_gorge_drift_ref_modif > 0:
+                _d_al = (self._d_gorge_drift_ref_modif + 2.0 * _jeu) if _pos == 'arbre' \
+                        else self._d_gorge_drift_ref_modif
+            else:
+                _d_al = (_d_comp + 2.0 * _jeu) if _pos == 'alesage' else _d_comp
             if _d_al > 0:
                 self._resultat = calculer_gorge(
                     diametre_piece_mm = _d_al,
@@ -3894,19 +6171,19 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 pass
 
         if body is None:
-            message_erreur("ORing",
-                "Selectionner la piece portant la GORGE dans l'onglet 4.\n\n"
-                "Gorge sur arbre   : selectionner le body ARBRE\n"
-                "Gorge dans alesage: selectionner le body ALESAGE"
+            message_erreur(tr("ORing — Missing part"),
+                tr("Select the part bearing the GROOVE in tab 2.\n\n"
+                "Groove on shaft : select the SHAFT body\n"
+                "Groove in bore  : select the BORE body")
             )
-            return
+            return False
         if lcs is None:
-            message_erreur("ORing",
-                "Selectionner un LCS dans l'onglet 4.\n\n"
-                "Ce LCS doit appartenir a la piece qui recoit la gorge.\n"
-                "Le sketch sera accroche au plan XZ de ce LCS."
+            message_erreur(tr("ORing — Missing LCS"),
+                tr("Select an LCS in tab 2.\n\n"
+                "This LCS must belong to the part receiving the groove.\n"
+                "The sketch will be attached to this LCS's XZ plane.")
             )
-            return
+            return False
 
         # Helper : lire param_gorge / param_comp depuis le widget OU les métadonnées
         # (le widget est gelé en mode modification → get_nom_parametre() retourne None)
@@ -3964,18 +6241,24 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 "Select the body and parameter in the Parts tab,\n"
                 "or enter the diameter manually.")
             )
-            return
+            return False
         jeu = self._get_jeu_radial()
 
         # Diametre ajuste de la piece principale
-        if position == 'arbre':
+        # BUGFIX (03/09/2026, signalé par l'utilisateur) : tant qu'une dérive
+        # côté gorge est en attente, d_princ DOIT rester sa valeur courante
+        # réelle -- sinon ce calcul écrase le paramètre FreeCAD (section 0
+        # plus bas) avec une valeur dérivée de comp+jeu, annulant
+        # silencieusement la préservation faite par _recalculer_apres_derive.
+        if self._part_en_modification is not None and self._d_gorge_drift_ref_modif > 0:
+            d_princ = self._d_gorge_drift_ref_modif
+        elif position == 'arbre':
             # Arbre tourne dans l'alesage : D_arbre = D_alesage - 2*jeu
             d_princ = d_compl - 2.0 * jeu
-            r_compl = d_compl / 2.0   # r_alesage pour ligne construction sketch
         else:
             # Gorge dans alesage : D_alesage_piece = D_arbre + 2*jeu
             d_princ = d_compl + 2.0 * jeu
-            r_compl = d_compl / 2.0   # r_arbre pour ligne construction sketch
+        r_compl = d_compl / 2.0   # r_alesage (arbre) ou r_arbre (alesage), ligne construction sketch
 
         # ── Contrôle doublon (ignoré en mode modification) ──────────────────
         if self._part_en_modification is None:
@@ -4011,7 +6294,29 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     sq_real=m.get("squeeze_reel_pct",0.0),
                     h=m.get("h_mm",0.0), b=m.get("b_mm",0.0), name=nom_existant)
                 )
-                return
+                return False
+
+        # ── Confirmation si le résultat est marqué INVALIDE ──────────────────
+        # Le bouton "Appliquer" reste actif tant que la géométrie est calculable
+        # (d1/h/b présents), même en présence d'alertes bloquantes (matériau,
+        # pression/température hors plage, étirement excessif...). On demande
+        # donc une confirmation explicite avant de générer la gorge plutôt que
+        # de compter uniquement sur le texte "INVALIDE" dans les résultats.
+        if self._resultat is not None and not self._resultat.valide:
+            _liste_alertes = "\n".join(
+                f"  • {a}" for a in (self._resultat.alertes or [])
+            ) or tr("(see calculation results)")
+            _reponse = QtWidgets.QMessageBox.warning(
+                self,
+                tr("ORing — Invalid result"),
+                tr("This seal is flagged INVALID:\n\n{alerts}\n\n"
+                   "Do you want to apply it anyway?",
+                   alerts=_liste_alertes),
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                QtWidgets.QMessageBox.No
+            )
+            if _reponse != QtWidgets.QMessageBox.Yes:
+                return False
 
         try:
             # ── 0. Log de debug — body et LCS utilises ───────────────────
@@ -4175,15 +6480,10 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     print(f"[ORing] Fast-path matériau seul : "
                           f"'{_mat_ancien}' → '{_mat_nouveau}'")
                     # Mettre à jour uniquement la couleur du tore
-                    body_oring_nom = meta_existante.get('body_oring_name', '')
-                    body_oring = (self._doc.getObject(body_oring_nom)
-                                  if body_oring_nom else None)
-                    if body_oring is None:
-                        for _child in getattr(self._part_en_modification, 'Group', []):
-                            if (_child.TypeId == 'PartDesign::Body'
-                                    and _child.Label.startswith('ORing')):
-                                body_oring = _child
-                                break
+                    from .metadata import body_oring_de
+                    body_oring = body_oring_de(self._part_en_modification,
+                                               meta_existante,
+                                               doc_repli=self._doc)
                     if body_oring is not None:
                         from .oring_3d import appliquer_couleur_materiau
                         appliquer_couleur_materiau(body_oring, _mat_nouveau)
@@ -4222,13 +6522,23 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                             "an invalid result. Check the parameters.")
                             + "\n\n" + ('\n'.join(self._resultat.alertes) if self._resultat else '')
                         )
-                        return
+                        # Seule sortie en échec SITUÉE APRÈS des écritures : le
+                        # paramètre Ø et les métadonnées sont déjà posés. C'est
+                        # le retour False qui les fait défaire, en abandonnant
+                        # la transaction dans _on_appliquer().
+                        return False
                     # Capturer AVANT ecrire_metadonnees
                     self._d_gorge_ref_avant_modif = float(
                         meta_existante.get('d_gorge_ref_mm', d_princ)
                     )
+                    # DOCUMENT DU JOINT (06/09/2026, support des liens) : le
+                    # joint d'un composant lié vit dans le document source, pas
+                    # dans l'assemblage. En mono-document, c'est self._doc :
+                    # comportement strictement inchangé.
+                    _doc_joint = (getattr(self._part_en_modification,
+                                          'Document', None) or self._doc)
                     _mettre_a_jour_geometries_existantes(
-                        doc            = self._doc,
+                        doc            = _doc_joint,
                         r              = self._resultat,
                         position       = position,
                         d_comp_mm      = d_compl,
@@ -4237,15 +6547,34 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     )
                     # Récupérer les références existantes pour les métadonnées
                     sketch_nom     = meta_existante.get('sketch_gorge_name', '')
-                    sketch         = self._doc.getObject(sketch_nom) if sketch_nom else None
+                    sketch         = _doc_joint.getObject(sketch_nom) if sketch_nom else None
                     body_oring_nom = meta_existante.get('body_oring_name', '')
-                    body_oring     = self._doc.getObject(body_oring_nom) if body_oring_nom else None
+                    body_oring     = _doc_joint.getObject(body_oring_nom) if body_oring_nom else None
 
             else:
                 # ── Mode création : générer sketch + groove + oring ────────────
+                # DOCUMENT CIBLE (06/09/2026, support des liens) : tout ce qui
+                # constitue le joint appartient à la PIÈCE, donc au document du
+                # body portant la gorge — qui n'est pas le document actif quand
+                # le composant est inséré comme App::Link dans un assemblage
+                # multi-fichiers. En mono-document, body.Document EST self._doc :
+                # comportement strictement inchangé.
+                # Voir claude/spec_support_liens_assemblage.md §4 et §7.
+                _doc_cible = getattr(body, 'Document', None) or self._doc
+                # Aspect du corps PORTEUR, capture avant la creation : le
+                # nouveau Tip (GorgeORing_Sym) est un objet neuf et recoit une
+                # couleur au hasard quand FreeCAD est regle sur « couleur
+                # aleatoire ». Reapplique en fin de flux, au Body, a son Tip et
+                # aux features nouvelles -- comme le fait deja
+                # appliquer_couleur_materiau() pour le tore.
+                self._aspect_porteur = (body, capturer_aspect_corps(body))
+                if _doc_cible is not self._doc:
+                    print(f"[ORing liens] création dans le document source "
+                          f"'{_doc_cible.Name}' (composant lié), "
+                          f"assemblage = '{self._doc.Name}'")
                 if position == 'arbre':
                     sketch = generer_sketch_gorge_arbre(
-                        doc            = self._doc,
+                        doc            = _doc_cible,
                         body           = body,
                         resultat       = self._resultat,
                         lcs            = lcs,
@@ -4256,7 +6585,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     )
                 else:
                     sketch = generer_sketch_gorge_alesage(
-                        doc          = self._doc,
+                        doc          = _doc_cible,
                         body         = body,
                         resultat     = self._resultat,
                         lcs          = lcs,
@@ -4267,25 +6596,67 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     )
                 if sketch:
                     _appliquer_rainure_et_symetrie(
-                        doc      = self._doc,
+                        doc      = _doc_cible,
                         body     = body,
                         sketch   = sketch,
                         lcs      = lcs,
                         position = position,
                     )
+                # ── ÉPREUVE DE L'ABANDON — inerte par défaut ───────────────
+                #
+                # Le chemin d'abandon de la transaction n'est emprunté par
+                # AUCUN usage normal : une insertion qui réussit ne le prend
+                # jamais, et le laisser non exercé, c'est ne pas savoir si le
+                # filet posé le 11/09/2026 retient quelque chose.
+                #
+                # Ces lignes ne font rien tant que la variable d'environnement
+                # n'existe pas. Pour l'essai, dans la console Python :
+                #
+                #     import os; os.environ['ORING_ESSAI_ECHEC'] = '1'
+                #     … lancer la macro, faire une insertion …
+                #     os.environ.pop('ORING_ESSAI_ECHEC', None)
+                #
+                # L'échec est provoqué ICI à dessein : la gorge est creusée et
+                # le paramètre Ø de la pièce est déjà réécrit, mais le joint
+                # n'existe pas encore. C'est très exactement ce que l'ancien
+                # code laissait dans le document de l'utilisateur quand
+                # l'insertion tournait court.
+                #
+                # La variable est lue À L'APPEL, jamais au chargement :
+                # `ORing.py` purge `modules.dialogue` de `sys.modules` à chaque
+                # lancement, donc rien de posé depuis la console ne survit
+                # (mecanismes_partages.md §5). L'import est local pour la même
+                # raison qu'ailleurs dans ce projet : ne pas toucher au bloc
+                # d'imports de tête d'un fichier de 9 000 lignes pour un point
+                # d'essai (mémorandum §2.2 point 6).
+                import os as _os_essai
+                # `pop` et non `get` : le point d'essai se DÉSARME de lui-même
+                # en se déclenchant. L'utilisateur n'a donc qu'une seule ligne
+                # à taper, avant de lancer la macro, et rien à retirer après —
+                # une variable d'environnement oubliée ferait échouer toutes
+                # les insertions suivantes de la session sans qu'on sache
+                # pourquoi. Un dispositif d'essai qui survit à son essai est un
+                # piège (13/09/2026).
+                if _os_essai.environ.pop('ORING_ESSAI_ECHEC', None):
+                    raise RuntimeError(
+                        "ORING_ESSAI_ECHEC — échec provoqué après l'écriture "
+                        "du paramètre de la pièce et avant la création du "
+                        "joint. Si vous lisez ceci sans l'avoir demandé, "
+                        "retirez la variable d'environnement.")
+
                 # Créer le Part ORing vide AVANT le body_oring, pour pouvoir
                 # passer part_oring à generer_oring_3d et éviter que FreeCAD
                 # place le body dans le mauvais conteneur actif.
                 _lcs_label_creation = lcs.Label if lcs else ''
                 _nom_part_creation  = nom_part(position, _lcs_label_creation)
-                _part_cree_avant = self._doc.addObject(
+                _part_cree_avant = _doc_cible.addObject(
                     'App::Part', _nom_part_creation)
                 _part_cree_avant.Label = _nom_part_creation
 
                 body_oring = None
                 try:
                     body_oring = generer_oring_3d(
-                        doc        = self._doc,
+                        doc        = _doc_cible,
                         resultat   = self._resultat,
                         lcs        = lcs,
                         position   = position,
@@ -4297,7 +6668,14 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     print(f"[ORing 3D] Avertissement : corps joint non créé : {e_oring}")
 
                 # Masquer les sketches uniquement à la création
-                _masquer_sketches(self._doc, body, body_oring)
+                _masquer_sketches(_doc_cible, body, body_oring)
+                # Recalcul du document source AVANT celui de l'assemblage :
+                # l'assemblage dépend de lui, pas l'inverse.
+                if _doc_cible is not self._doc:
+                    try:
+                        _doc_cible.recompute()
+                    except Exception as _e_rc:
+                        print(f"[ORing liens] recompute source : {_e_rc}")
 
             # ── 6. App::Part conteneur + métadonnées ──────────────────────────
             try:
@@ -4384,7 +6762,8 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     try:
                         from .metadata import rattacher_joint_au_conteneur
                         rattacher_joint_au_conteneur(
-                            self._doc,
+                            getattr(self._part_en_modification,
+                                    'Document', None) or self._doc,
                             self._part_en_modification,
                             body, position)
                     except Exception as _e_c:
@@ -4404,7 +6783,7 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                     # Rattacher le Part ORing au conteneur du body gorge
                     try:
                         rattacher_joint_au_conteneur(
-                            self._doc, _part_cree_avant, body, position)
+                            _doc_cible, _part_cree_avant, body, position)
                     except Exception as _e_c:
                         print(f"[ORing conteneur] création : {_e_c}")
 
@@ -4487,6 +6866,30 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
             # ── Couleur matériau (synchrone — visible avant le message) ──────
             self._on_recalibrer_couleurs()
 
+            # ── Aspect du corps porteur ──────────────────────────────────────
+            # APRÈS _on_recalibrer_couleurs() : celle-ci colorie les corps
+            # ORing et ne touche pas au porteur ; l'ordre garantit qu'aucun
+            # recalcul ne viendra ensuite écraser l'aspect remis en place.
+            _capture_porteur = getattr(self, '_aspect_porteur', None)
+            self._aspect_porteur = None
+            if _capture_porteur:
+                try:
+                    _b_porteur, _etat_porteur = _capture_porteur
+                    if _b_porteur is not None and _etat_porteur:
+                        restaurer_aspect_corps(_b_porteur, _etat_porteur)
+                except Exception as _e_asp:
+                    print(f"[ORing aspect] restauration AVERT : {_e_asp}")
+
+            # ── Aplatissement par le lien ────────────────────────────────────
+            # Le joint vient d'entrer dans le sous-arbre d'un lien : si
+            # celui-ci porte OverrideMaterial, son materiau unique s'impose
+            # au joint (couleur juste dans le document source, fausse dans
+            # l'assemblage — signale par l'utilisateur le 06/09/2026).
+            try:
+                neutraliser_override_materiau(self._doc)
+            except Exception as _e_ov:
+                print(f"[ORing couleurs] neutralisation AVERT : {_e_ov}")
+
             # ── Afficher le message IMMÉDIATEMENT ────────────────────────────
             # Les tâches lourdes (_maj_joints_lies, _onglet_initial) sont
             # différées via QTimer pour ne pas bloquer l'affichage.
@@ -4517,12 +6920,24 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
 
                 def _travail_lourd():
                     _std_changes = []
+                    # Transaction distincte de celle de l'insertion : cette
+                    # propagation est DIFFÉRÉE (QTimer), elle démarre donc bien
+                    # après que _on_appliquer() a refermé la sienne. Deux
+                    # entrées d'annulation, chacune cohérente — plutôt qu'une
+                    # transaction laissée ouverte à travers une boîte modale
+                    # d'attente, où n'importe quelle autre opération viendrait
+                    # se mêler à la nôtre.
+                    _transaction_lies = _ouvrir_transaction(
+                        tr("Update linked O-ring seals"))
                     try:
                         _std_changes = self._maj_joints_lies(
                             _body_label_pour_lies,
                             dlg_progression=_dlg_attente) or []
                     except Exception as _e_lies:
+                        _fermer_transaction(_transaction_lies, abandon=True)
                         print(f"[ORing] AVERT _maj_joints_lies : {_e_lies}")
+                    else:
+                        _fermer_transaction(_transaction_lies, abandon=False)
 
                     if _dlg_attente is not None:
                         try:
@@ -4554,17 +6969,17 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                                 f"  \u2192  {_ch['std_apres']} \u00b7 {_ch['serie_apres']}"
                             )
                         _msg_std = (
-                            "\u26a0  Lors de la mise à jour automatique des joints liés,\n"
-                            "la série d'origine n'offrait aucune solution adaptée.\n"
-                            "Les joints suivants ont été mis à jour avec les\n"
-                            "caractéristiques du joint modifié :\n\n"
-                            + "\n\n".join(_lignes)
-                            + "\n\nVérifiez la compatibilité de ces joints\n"
-                              "avec votre assemblage avant utilisation."
+                            tr("\u26a0  During automatic update of linked seals,\n"
+                               "the original series had no suitable solution.\n"
+                               "The following seals were updated with the\n"
+                               "characteristics of the modified seal:\n")
+                            + "\n" + "\n\n".join(_lignes)
+                            + "\n\n" + tr("Verify the compatibility of these seals\n"
+                                          "with your assembly before use.")
                         )
                         QtWidgets.QMessageBox.warning(
                             self,
-                            "ORing \u2014 Changement de série / standard",
+                            tr("ORing \u2014 Series / standard change"),
                             _msg_std,
                         )
 
@@ -4572,10 +6987,61 @@ tr("{shown} / {total} seal(s) shown \u2014 filter: {filt}", shown=nb_visibles, t
                 QtCore.QTimer.singleShot(50, _travail_lourd)
 
             QtCore.QTimer.singleShot(0, _post_confirmation)
+            return True
 
         except Exception:
             import traceback
-            message_erreur(tr("ORing — Generation error"), traceback.format_exc())
+            _tb = traceback.format_exc()
+            # Le traceback complet reste utile pour le diagnostic — il va dans
+            # la console FreeCAD et dans un panneau "Détails" replié par défaut,
+            # plutôt que d'être imposé tel quel dans le corps du message.
+            print(f"[ORing] ERREUR génération :\n{_tb}")
+            # Abandonner AVANT d'afficher le message, pas après : la boîte
+            # ci-dessous fait tourner une boucle d'événements (exec_()), donc
+            # la vue 3D se repeint pendant qu'elle est ouverte. Le message
+            # annonce que le document a été remis dans son état d'avant — il
+            # faut que ce soit déjà vrai quand l'utilisateur le lit, et que ce
+            # soit ce qu'il ait sous les yeux derrière la boîte.
+            # Le drapeau remis à False rend la fermeture idempotente :
+            # _on_appliquer() refermera dans le vide, sans double abandon.
+            _fermer_transaction(getattr(self, '_transaction_ouverte', False),
+                                abandon=True)
+            _transaction_etait_ouverte = getattr(self, '_transaction_ouverte',
+                                                 False)
+            self._transaction_ouverte = False
+            # AVANT la boite, pas apres : elle annonce que « rien n'a ete
+            # laisse derriere ». Il faut que ce soit deja vrai quand
+            # l'utilisateur la lit -- meme raisonnement que pour l'abandon
+            # de la transaction juste au-dessus (13/09/2026).
+            self._nettoyer_lcs_apres_abandon()
+            try:
+                _box = QtWidgets.QMessageBox(self)
+                _box.setIcon(QtWidgets.QMessageBox.Critical)
+                _box.setWindowTitle(tr("ORing — Generation error"))
+                # Le texte dépend de ce qui s'est réellement passé : avec
+                # une transaction ouverte, l'abandon défait tout et il n'y a
+                # rien à aller vérifier ; sans elle (cas d'exception signalé
+                # par _ouvrir_transaction), l'ancien avertissement reste le
+                # seul honnête. Un message qui promet une restauration qui
+                # n'a pas eu lieu serait pire que l'ancien.
+                _box.setText(tr(
+                    "Groove/seal generation failed.\n\n"
+                    "The document has been restored to its state before the "
+                    "insertion — nothing was left behind. Click \"Show "
+                    "Details...\" below for the technical error (also printed "
+                    "to the FreeCAD console)."
+                ) if _transaction_etait_ouverte else tr(
+                    "Groove/seal generation failed.\n\n"
+                    "Check the document for anything left in an inconsistent "
+                    "state. Click \"Show Details...\" below for the technical "
+                    "error (also printed to the FreeCAD console)."
+                ))
+                _box.setDetailedText(_tb)
+                _box.exec_()
+            except Exception:
+                # Repli si la construction de la boîte détaillée échoue
+                message_erreur(tr("ORing — Generation error"), _tb)
+            return False
 
     @staticmethod
     def _restaurer_body_actif(doc, body_label=None):
@@ -5344,11 +7810,17 @@ def _maj_tore_inplace(doc, body_oring, r, position: str) -> bool:
     try:
         # ── Recalculer les dimensions ────────────────────────────────────
         r_gorge   = round(float(getattr(r, 'rayon_gorge', 0.0)), 6)
-        if position == 'arbre':
-            r_contact = round(float(getattr(r, 'rayon_arbre',
-                               getattr(r, 'd_alesage', 0.0) / 2.0)), 6)
-        else:
-            r_contact = round(float(getattr(r, 'd_alesage', 0.0) / 2.0), 6)
+        # r.rayon_arbre = rayon de CONTACT (côté sans gorge), déjà calculé par
+        # calcul.py pour les deux positions (arbre : contact alésage ;
+        # alésage : contact arbre) — cf. oring_3d.py::inserer_oring_3d().
+        # Ne PAS le recalculer différemment par position ici : c'était le bug
+        # (position=='alesage' utilisait d_alesage/2 = rayon de l'alésage lui-
+        # même au lieu du rayon de contact avec l'arbre → Ø intérieur du 3D
+        # figé sur Ø alésage au lieu de Ø arbre après une mise à jour in-place).
+        r_contact = round(float(getattr(r, 'rayon_arbre',
+                           (getattr(r, 'd_alesage', 0.0) / 2.0
+                            if position == 'arbre'
+                            else getattr(r, 'd_arbre', 0.0) / 2.0))), 6)
 
         r_min = round(min(r_gorge, r_contact), 6)
         r_max = round(max(r_gorge, r_contact), 6)
@@ -5424,6 +7896,12 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
     part          : App::Part ORing contenant le body_oring (fallback fiable)
     """
     import math
+
+    # Le joint d'un composant lié vit dans le document source (06/09/2026) :
+    # `part` en est la référence la plus fiable. En mono-document,
+    # part.Document EST doc — comportement strictement inchangé.
+    if part is not None:
+        doc = getattr(part, 'Document', None) or doc
 
     def fillet_haut(d2): return round(max(0.05, min(0.40, 0.06 * d2)), 3)
     def fillet_fond(d2): return round(max(0.05, min(0.25, 0.04 * d2)), 3)
@@ -5537,11 +8015,6 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
         for _dc in sketch_gorge.Constraints:
             if _dc.Name.startswith(('Rayon', 'demiLargeur', 'Fillet', 'depouille')):
                 print(f"[ORing modif GORGE]   avant: '{_dc.Name}' = {_dc.Value:.4f}")
-        # DIAG alesage : lister TOUTES les contraintes nommées
-        if position == 'alesage':
-            noms_all = [(c.Name, c.Type) for c in sketch_gorge.Constraints if c.Name]
-            print(f"[ORing modif DIAG alesage] Contraintes nommées : {noms_all}")
-
         # ── Recherche du Body et des features PartDesign liés au sketch ──────
         body_gorge_obj = None
         features_liees = []
@@ -5886,19 +8359,8 @@ def _mettre_a_jour_geometries_existantes(doc, r, position: str,
     # ── Tore 3D : supprimer l'ancien body et le recréer ────────────────────
     # Les tentatives de mise à jour des contraintes in-place ne propagent pas
     # correctement jusqu'à la Revolution. La solution fiable est la recréation.
-    nom_body_oring = meta_existante.get('body_oring_name', '')
-    body_oring_old = doc.getObject(nom_body_oring) if nom_body_oring else None
-
-    if body_oring_old is None:
-        # Fallback : chercher dans le Group du Part
-        if part is not None:
-            for child in getattr(part, 'Group', []):
-                if (child.TypeId == 'PartDesign::Body'
-                        and child.Label.startswith('ORing')):
-                    body_oring_old = child
-                    print(f"[ORing modif] Body ORing trouvé dans Part.Group : "
-                          f"'{child.Name}'")
-                    break
+    from .metadata import body_oring_de
+    body_oring_old = body_oring_de(part, meta_existante, doc_repli=doc)
 
     # Conserver le nom et le label pour la recréation
     nom_body_conserve   = body_oring_old.Name  if body_oring_old else 'ORing'
@@ -6178,16 +8640,9 @@ def appliquer_couleur_apres_recompute(doc, part, meta: dict) -> None:
     """
     try:
         from .oring_3d import appliquer_couleur_materiau
-        from .metadata import lire_metadonnees
+        from .metadata import lire_metadonnees, body_oring_de
         _meta = meta if meta else lire_metadonnees(part)
-        nom_body = _meta.get('body_oring_name', '')
-        body_col = doc.getObject(nom_body) if nom_body else None
-        if body_col is None:
-            for child in getattr(part, 'Group', []):
-                if (child.TypeId == 'PartDesign::Body'
-                        and child.Label.startswith('ORing')):
-                    body_col = child
-                    break
+        body_col = body_oring_de(part, _meta, doc_repli=doc)
         if body_col is not None:
             mat = _meta.get('materiau', '')
             appliquer_couleur_materiau(body_col, mat)
@@ -6250,6 +8705,239 @@ def _fermer_taches_actives():
         return True   # En cas d'erreur, toujours laisser passer
 
 
+def _afficher_guide_prerequis(parent=None) -> bool:
+    """
+    Affiche le guide illustré des prérequis (PrerequisHelper : pages badges,
+    tableau, conseils, thème clair/sombre) plutôt qu'un simple message texte.
+
+    Ce dialogue existait déjà dans le module mais n'était appelé nulle part —
+    à la place, seul un QMessageBox.information brut était affiché. On tente
+    donc ici de l'ouvrir, et on retourne False en cas de problème pour que
+    l'appelant retombe sur le message texte simple (comportement inchangé).
+
+    Retourne True si le guide a pu être affiché, False sinon.
+    """
+    try:
+        from . import i18n as _i18n_mod
+        from .helper_i18n import merge_helper_translations, make_tr
+        from .prerequis_helper import PrerequisHelper
+
+        traductions = dict(getattr(_i18n_mod, '_translations', {}) or {})
+        traductions = merge_helper_translations(traductions, _i18n_mod.get_lang())
+        tr_helper = make_tr(traductions)
+
+        dlg = PrerequisHelper(tr_helper, parent=parent)
+        dlg.exec_()
+        return True
+    except Exception as _e:
+        print(f"[ORing] AVERT affichage guide prérequis : {_e}")
+        return False
+
+
+
+
+def _changements_hors_macro(derives):
+    """Regroupe les dérives par PARAMÈTRE modifié hors macro.
+
+    Une dérive est signalée joint par joint ; or ce qui a changé, c'est un
+    paramètre d'esquisse, vu par plusieurs joints — tantôt comme leur pièce
+    complémentaire, tantôt comme leur pièce portant la gorge. Ce regroupement
+    remet la cause au centre.
+
+    Retourne {(libellé du corps, nom du paramètre) : fiche}, chaque fiche
+    portant l'ancienne et la nouvelle valeur **en diamètre**, si le paramètre
+    est stocké en rayon, et la liste des joints concernés avec le côté par
+    lequel chacun le voit.
+    """
+    changements = {}
+    for entree in derives or []:
+        if not entree.get('derive'):
+            continue
+        meta = entree.get('meta') or {}
+        cotes = (
+            ('comp', entree.get('delta_comp'), entree.get('ref'),
+             entree.get('courant'), meta.get('param_comp', ''),
+             meta.get('param_comp_rayon', 'diametre') == 'rayon',
+             meta.get('body_comp_name', ''), meta.get('body_comp_label', '')),
+            ('gorge', entree.get('delta_gorge'), entree.get('ref_gorge'),
+             entree.get('courant_gorge'), meta.get('param_gorge', ''),
+             meta.get('param_gorge_rayon', 'diametre') == 'rayon',
+             meta.get('body_gorge_name', ''), meta.get('body_gorge_label', '')),
+        )
+        for cote, delta, ancien, nouveau, param, rayon, bnom, blabel in cotes:
+            if not param or delta is None or delta <= 0.001:
+                continue
+            if ancien is None or nouveau is None:
+                continue
+            cle = (blabel or bnom, param)
+            fiche = changements.setdefault(cle, {
+                'param': param,
+                'body_name': bnom,
+                'body_label': blabel,
+                'rayon': rayon,
+                'ancien': float(ancien),
+                'nouveau': float(nouveau),
+                'joints': [],
+            })
+            fiche['joints'].append({'entree': entree, 'cote': cote,
+                                    'meta': meta})
+    return changements
+
+
+def _valeur_complementaire(fiche, pilote):
+    """Valeur à inscrire dans `spin_d_comp_modif` pour le joint pilote.
+
+    Ce champ porte le Ø de la pièce COMPLÉMENTAIRE, dont le dialogue dérive
+    ensuite celui de la pièce à gorge (`d_princ = d_compl ∓ 2·jeu`). Selon le
+    côté par lequel le joint pilote voit le paramètre modifié :
+
+      - c'est sa pièce complémentaire  → la nouvelle valeur telle quelle ;
+      - c'est sa pièce portant la gorge → la nouvelle valeur ∓ 2·jeu.
+
+    Les deux aboutissent au même modèle final (vérifié sur le relevé du
+    10/09/2026, 21:17 : alésage 25 → 40, jeu 0,1 → arbre à 39,8 dans les
+    deux cas).
+    """
+    nouveau = fiche['nouveau']
+    if pilote['cote'] == 'comp':
+        return nouveau
+    meta = pilote['meta']
+    jeu = float(meta.get('jeu_radial_mm', 0.0))
+    if meta.get('position', 'arbre') == 'arbre':
+        # gorge sur arbre : d_arbre = d_alesage - 2·jeu  →  d_alesage = d + 2·jeu
+        return nouveau + 2.0 * jeu
+    # gorge dans l'alésage : d_alesage = d_arbre + 2·jeu  →  d_arbre = d - 2·jeu
+    return nouveau - 2.0 * jeu
+
+
+def _preparer_reprise_modification_esquisse(doc, part_prefere=None):
+    """Propose de reprendre dans la macro une modification faite en esquisse.
+
+    RÈGLE (10/09/2026, demande utilisateur) : « si un paramètre d'esquisse a
+    été modifié hors macro, remettre le paramètre d'esquisse à la valeur
+    correcte avant modification, proposer à l'utilisateur d'éditer un des
+    joints concernés avec cette nouvelle valeur, si oui présenter l'onglet
+    avec la valeur modifiée, et l'utilisateur valide pour réaliser la mise à
+    jour qui, dans ce cas, se propagera. »
+
+    Pourquoi : le dialogue tient le couple arbre/alésage (le Ø de la pièce à
+    gorge est dérivé de la complémentaire et du jeu), donc une modification
+    qui passe par lui met toujours les DEUX pièces à jour. Une modification
+    faite en esquisse ne déplace qu'un membre du couple ; la propagation relit
+    ensuite deux valeurs incohérentes et calcule un jeu aberrant — mesuré le
+    10/09/2026 : −7,4 mm dans un sens, +7,6 mm dans l'autre, avec dans les
+    deux cas les références de dérive mises à jour sur une géométrie fausse.
+
+    La modification d'esquisse est donc traitée comme un **signal
+    d'intention**, pas comme un état à rattraper : le modèle ne séjourne
+    jamais dans un état incohérent.
+
+    **Rien n'est écrit avant le « oui » de l'utilisateur.** Un refus laisse le
+    document intact et rend la main au comportement actuel (onglet 3, dérive
+    affichée).
+
+    `part_prefere` : joint pré-sélectionné par l'utilisateur. S'il fait partie
+    des joints concernés, c'est lui qui est ouvert — « si un joint est
+    sélectionné et qu'une dérive est constatée, alors on passe à la
+    modification du joint » (règle du 10/09/2026). N'importe quel joint
+    concerné conduit au même modèle final (§4 du plan), la sélection de
+    l'utilisateur est donc respectée sans rien coûter.
+
+    Retourne le descriptif de la reprise, ou None si rien à faire.
+    Voir claude/plan_propagation_derive_depuis_esquisse.md.
+    """
+    if not FREECAD_DISPONIBLE or doc is None:
+        return None
+    try:
+        from .metadata import verifier_derives
+        derives = verifier_derives(doc)
+    except Exception as erreur:
+        print("[ORing] Contrôle de dérive AVERT : %s" % erreur)
+        return None
+
+    changements = _changements_hors_macro(derives)
+    if not changements:
+        return None
+
+    if len(changements) > 1:
+        # Le dialogue ne porte qu'une valeur de pièce complémentaire : deux
+        # paramètres modifiés en même temps ne peuvent pas être repris d'un
+        # seul geste. Signalé, et laissé au traitement manuel de l'onglet 3
+        # plutôt que d'en choisir un arbitrairement.
+        print("[ORing] AVERT %d paramètres modifiés hors macro (%s) — reprise "
+              "automatique impossible, traitement joint par joint onglet 3"
+              % (len(changements),
+                 ', '.join(sorted(p for _b, p in changements))))
+        return None
+
+    fiche = list(changements.values())[0]
+    joints = fiche['joints']
+    # 1) le joint que l'utilisateur a lui-même sélectionné, s'il est concerné ;
+    # 2) sinon un joint qui voit le paramètre comme sa pièce COMPLÉMENTAIRE :
+    #    la valeur s'y inscrit telle quelle, sans arithmétique ;
+    # 3) sinon le premier venu — tous mènent au même modèle final (§4 du plan).
+    pilote = None
+    if part_prefere is not None:
+        pilote = next((j for j in joints
+                       if j['entree'].get('part') is part_prefere), None)
+    if pilote is None:
+        pilote = next((j for j in joints if j['cote'] == 'comp'), joints[0])
+    valeur_comp = _valeur_complementaire(fiche, pilote)
+    nom_corps = fiche['body_label'] or fiche['body_name']
+
+    reponse = QtWidgets.QMessageBox.question(
+        Gui.getMainWindow(),
+        tr("Sketch change detected"),
+        tr("“{param}” on “{body}” was changed outside the macro:\n"
+           "    {ancien:.3f} mm  →  {nouveau:.3f} mm\n\n"
+           "{n} seal(s) depend on this parameter. Applied from the sketch "
+           "alone, the change leaves the shaft/bore pair inconsistent and "
+           "the seals cannot follow.\n\n"
+           "The macro can restore the sketch value and reopen it in the edit "
+           "dialog with the new one already filled in — validating there "
+           "updates both parts and every affected seal, exactly as a change "
+           "made from the macro.\n\n"
+           "Apply the change through the macro?",
+           param=fiche['param'], body=nom_corps,
+           ancien=fiche['ancien'], nouveau=fiche['nouveau'],
+           n=len(joints)),
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        QtWidgets.QMessageBox.Yes,
+    )
+    if reponse != QtWidgets.QMessageBox.Yes:
+        print("[ORing reprise] refusée par l'utilisateur "
+              "— aucune écriture, comportement habituel (onglet 3)")
+        return None
+
+    # À partir d'ici seulement, on écrit.
+    from .utils import set_valeur_parametre as _set_param
+    from .metadata import trouver_objet as _trouver
+    corps = _trouver(doc, name=fiche['body_name'], label=fiche['body_label'],
+                     type_id='PartDesign::Body')
+    if corps is None:
+        print("[ORing] AVERT corps '%s' introuvable — reprise abandonnée, "
+              "rien n'a été modifié" % nom_corps)
+        return None
+
+    valeur_restauree = (fiche['ancien'] / 2.0 if fiche['rayon']
+                        else fiche['ancien'])
+    if not _set_param(corps, fiche['param'], valeur_restauree):
+        print("[ORing] AVERT restauration de '%s' impossible — reprise "
+              "abandonnée, rien n'a été modifié" % fiche['param'])
+        return None
+
+    print("[ORing reprise] %s restauré à %.4f, repris dans le dialogue via "
+          "Ø complémentaire = %.4f (joint pilote %s, côté %s)"
+          % (fiche['param'], valeur_restauree, valeur_comp,
+             getattr(pilote['entree']['part'], 'Label', '?'), pilote['cote']))
+    return {
+        'part':        pilote['entree']['part'],
+        'valeur_comp': float(valeur_comp),
+        'param':       fiche['param'],
+        'nouveau':     fiche['nouveau'],
+    }
+
+
 def lancer_dialogue():
     """
     Point d'entrée de la macro.
@@ -6280,101 +8968,485 @@ def lancer_dialogue():
         # Aucun document ouvert — on laisse DialogueORing gérer ce cas
         doc = None
 
-    if doc is not None and not doc_a_bodies_valides(doc):
+    # ── Étape 1b-bis : compléter les documents chargés PARTIELLEMENT ─────────
+    #
+    # 13/09/2026. Dans un assemblage lié, FreeCAD ne charge souvent qu'une
+    # partie du document composant — et il n'y enregistre RIEN. Une
+    # modification de joint faite dans cet état a été mesurée perdue : la
+    # macro rapportait succès de bout en bout, le fichier rouvert seul portait
+    # toujours la valeur d'avant.
+    #
+    # Complété AU LANCEMENT (décision utilisateur du même jour) plutôt qu'au
+    # moment d'écrire : la liste des joints et la détection de dérive lisent
+    # alors des valeurs réelles, pas des valeurs d'un document incomplet.
+    # Rien de nouveau n'est ouvert — ces documents sont déjà là.
+    if doc is not None:
+        try:
+            from .utils import completer_documents_partiels
+
+            # RELEVER LA SÉLECTION 3D AVANT DE COMPLÉTER.
+            #
+            # Régression signalée par l'utilisateur le 13/09/2026, une heure
+            # après la pose de ce garde : « le highlight est perdu et ne se
+            # retrouve qu'en allant dans l'onglet 3 ». Cause : la détection du
+            # joint pré-sélectionné, quelques lignes plus bas, lit
+            # `Gui.Selection` — et `App.openDocument()` la perd.
+            #
+            # Relevée en CHAÎNES (document, objet, sous-éléments) et non en
+            # objets : après complétion, les objets peuvent avoir changé
+            # d'enveloppe. Des chaînes se re-résolvent sur l'état courant,
+            # quelle que soit l'hypothèse retenue sur ce que fait
+            # openDocument().
+            _sel_avant = []
+            try:
+                _sel_avant = [(s.DocumentName, s.ObjectName,
+                               tuple(s.SubElementNames))
+                              for s in Gui.Selection.getSelectionEx('', 0)]
+            except Exception:
+                _sel_avant = []
+
+            # completer_documents_partiels() annonce elle-même chaque
+            # document complété, par App.Console.PrintMessage — donc visible
+            # quel que soit le masquage de print(). Ne pas le redire ici : le
+            # message posé à cet endroit le 13/09/2026 était invisible.
+            _bilan_partiels = completer_documents_partiels(doc)
+
+            # Restituer la sélection SEULEMENT si elle a été perdue : ne rien
+            # toucher quand il n'y a rien à réparer.
+            if _sel_avant:
+                try:
+                    _perdue = not Gui.Selection.getSelection()
+                except Exception:
+                    _perdue = False
+                if _perdue:
+                    try:
+                        Gui.Selection.clearSelection()
+                        for _d, _o, _subs in _sel_avant:
+                            if _subs:
+                                for _s in _subs:
+                                    Gui.Selection.addSelection(_d, _o, _s)
+                            else:
+                                Gui.Selection.addSelection(_d, _o)
+                        print('[ORing] Sélection 3D restituée après '
+                              'complétion (%d élément(s))' % len(_sel_avant))
+                    except Exception as _e_sel:
+                        print('[ORing] AVERT restitution sélection : %s'
+                              % _e_sel)
+
+            if _bilan_partiels['partiels_restants']:
+                # Ne PAS bloquer ici : l'utilisateur peut vouloir seulement
+                # consulter. Le refus d'écrire est tenu dans _on_appliquer().
+                print('[ORing] AVERT document(s) restés partiels : %s'
+                      % ', '.join(_bilan_partiels['partiels_restants']))
+        except Exception as _e_partiel:
+            print('[ORing] AVERT complétion documents partiels : %s'
+                  % _e_partiel)
+
+    # BUGFIX (04/09/2026, signalé par l'utilisateur) : résoudre ici une
+    # éventuelle arête circulaire pré-sélectionnée, AVANT la garde ci-dessous
+    # -- sinon, sur un document sans aucun body LCS+paramètre valide (cas
+    # normal pour un corps "vierge" que 3.4bis, plus bas, est justement fait
+    # pour démarrer), la garde affichait le guide des prérequis et fermait la
+    # macro avant même que la détection 3.4bis ait eu une chance de
+    # s'exécuter -- rendant impossible tout démarrage depuis une arête sur un
+    # corps sans LCS. Résolu une seule fois ici et réutilisé plus bas (voir
+    # "Détecter la sélection avant le lancement").
+    _info_arete = None
+    if doc is not None:
+        try:
+            _info_arete = resoudre_arete_selectionnee()
+        except Exception as _e_arete0:
+            print(f"[ORing] Détection arête pré-sélectionnée AVERT : {_e_arete0}")
+
+    if (doc is not None and not doc_a_bodies_valides(doc)
+            and _info_arete is None):
         # Autoriser quand même si des joints ORing existent déjà dans le doc :
         # l'utilisateur veut les modifier, pas en créer de nouveaux.
+        # Autoriser aussi quand une arête circulaire est pré-sélectionnée :
+        # 3.4bis (plus bas) va alors démarrer un nouveau joint dessus, même
+        # sur un corps sans LCS ni paramètre nommé pour l'instant.
         try:
             from .metadata import lister_parts_oring
             _joints_existants = lister_parts_oring(doc)
         except Exception:
             _joints_existants = []
         if not _joints_existants:
-            QtWidgets.QMessageBox.information(
-                None,
-                "ORing — Prérequis non satisfaits",
-                _MSG_PREREQUIS
-            )
+            _parent_guide = Gui.getMainWindow() if FREECAD_DISPONIBLE else None
+            if not _afficher_guide_prerequis(parent=_parent_guide):
+                # Repli : guide indisponible → message texte simple (comportement
+                # historique), pour ne jamais laisser l'utilisateur sans aucune
+                # information sur ce qui bloque le lancement de la macro.
+                QtWidgets.QMessageBox.information(
+                    None,
+                    tr("ORing — Prerequisites not met"),
+                    _MSG_PREREQUIS
+                )
             return None
     # ─────────────────────────────────────────────────────────────────────────
 
     # Recolorer les joints existants (créés avant l'ajout de la palette couleurs)
+    # Un fichier peut arriver avec un lien deja marque OverrideMaterial : la
+    # couleur des joints qu'il contient serait alors ecrasee des l'ouverture.
     try:
-        from .oring_3d   import appliquer_couleur_materiau
-        from .metadata   import lister_parts_oring, lire_metadonnees
-        for _part in lister_parts_oring(doc):
-            _meta = lire_metadonnees(_part)
-            _mat  = _meta.get('materiau', '')
-            _nom  = _meta.get('body_oring_name', '')
-            if _nom:
-                _body = doc.getObject(_nom)
-                if _body is not None:
-                    appliquer_couleur_materiau(_body, _mat)
+        neutraliser_override_materiau(doc)
     except Exception:
         pass
 
-    # ── Dialogue de sélection de langue (mode MANUEL) ────────────────────
-    # Appelé ici car Gui.getMainWindow() est disponible et le dialogue
-    # apparaît correctement au premier plan.
     try:
-        from .i18n import (check_language_mode, _afficher_dialogue_langue,
-                           _sauvegarder_langue, setup as _i18n_setup_dlg,
-                           _ORING_DIR as _oring_dir_lang, get_lang)
-        if _oring_dir_lang:
-            _mode_lang = check_language_mode(_oring_dir_lang)
-            if _mode_lang == 'manual':
-                _mw = Gui.getMainWindow() if FREECAD_DISPONIBLE else None
-                _lang_actuel = get_lang()
-                _lang_choisi = _afficher_dialogue_langue(
-                    _oring_dir_lang, _lang_actuel, parent=_mw
-                )
-                if _lang_choisi != _lang_actuel:
-                    _sauvegarder_langue(_oring_dir_lang, _lang_choisi)
-                    _i18n_setup_dlg(_lang_choisi)
-                    print(f"[ORing] Langue changée : {_lang_actuel} → {_lang_choisi}")
-    except Exception as _e_lang_dlg:
-        print(f"[ORing] AVERT sélection langue : {_e_lang_dlg}")
+        from .oring_3d   import appliquer_couleur_materiau
+        from .metadata   import (lister_parts_oring, lire_metadonnees,
+                                 body_oring_de)
+        for _part in lister_parts_oring(doc):
+            _meta = lire_metadonnees(_part)
+            _mat  = _meta.get('materiau', '')
+            # SEUL des huit sites à n'avoir eu AUCUN repli sur part.Group :
+            # d'où le symptôme signalé — en assemblage lié, les joints
+            # existants ne retrouvaient pas leur couleur à l'ouverture de la
+            # macro, alors que le recalibrage manuel, lui, fonctionnait.
+            _body = body_oring_de(_part, _meta, doc_repli=doc)
+            if _body is not None:
+                appliquer_couleur_materiau(_body, _mat)
+    except Exception:
+        pass
 
-    # ── Détecter si un joint ORing est sélectionné avant le lancement ────
+    # NOTE (débogage 2026-08-26) : un bloc « sélection de langue en mode
+    # manuel » a été retiré ici. Il appelait check_language_mode(),
+    # _afficher_dialogue_langue(), _sauvegarder_langue() et setup() depuis
+    # .i18n — quatre fonctions qui n'ont jamais existé dans modules/i18n.py
+    # (celui-ci n'expose que init/tr/get_lang). Le bloc était sans danger
+    # (capturé par un except large, il ne faisait qu'imprimer un avertissement
+    # « AVERT sélection langue : cannot import name 'check_language_mode'... »
+    # à chaque lancement) mais ne faisait jamais rien de fonctionnel. La
+    # gestion de la langue reste assurée par ORing/lang.txt (vide → auto-
+    # détection FreeCAD/Qt/locale ; code à 2 lettres → langue forcée), gérée
+    # par modules/i18n.py::init(), déjà appelée dans ORing.py avant l'ouverture
+    # de ce dialogue. Si une sélection de langue interactive au démarrage est
+    # un jour souhaitée, elle est à réimplémenter entièrement (les 4 fonctions
+    # référencées ci-dessus + la logique de mode 'manual' dans lang.txt).
+
+    # ── Détecter la sélection avant le lancement (joint existant, ou
+    #    arête circulaire pour démarrer un nouveau joint dessus -- spec
+    #    §3.4bis, 03/09/2026, demande utilisateur) ─────────────────────
+    #
+    # RÈGLE (10/09/2026, demande utilisateur) : **sélectionner une arête,
+    # c'est vouloir créer un joint**. Le raccourci 3.4bis s'applique donc
+    # sans condition dès qu'une arête circulaire est pré-sélectionnée, même
+    # si un joint existant y est déjà accroché — un même corps peut porter
+    # plusieurs gorges (confirmé 03/09/2026), et deux joints peuvent
+    # légitimement partager la même arête support avec des décalages
+    # différents.
+    #
+    # Modifier un joint existant se demande autrement : en sélectionnant un
+    # de ses éléments (Part, Body, LCS...) — détection générique plus bas —
+    # ou en ne sélectionnant rien.
+    #
+    # Historique : jusqu'au 10/09/2026, `trouver_joint_pour_arete()` était
+    # interrogé ici pour ouvrir en édition le joint accroché à cette arête.
+    # Ce comportement rendait le raccourci imprévisible vu de l'utilisateur
+    # (une gorge a plusieurs arêtes, une seule porte le LCS) et a été retiré.
+    # Une boîte de choix intermédiaire a été essayée puis abandonnée le même
+    # jour : elle posait une question dont la réponse est toujours la même.
+    # Voir claude/constat_oring_arete_deja_gorge_3_4bis.md.
     part_selectionne = None
-    try:
-        from .metadata import lister_parts_oring
-        if doc is not None:
-            parts_oring = {p.Name: p for p in lister_parts_oring(doc)}
-            if parts_oring:
-                for sel_obj in Gui.Selection.getSelection():
-                    # Correspondance directe : l'objet sélectionné est un Part ORing
-                    if sel_obj.Name in parts_oring:
-                        part_selectionne = parts_oring[sel_obj.Name]
-                        break
-                    # Correspondance indirecte : l'objet est à l'intérieur d'un Part ORing
-                    for part in parts_oring.values():
-                        try:
-                            if sel_obj in part.OutListRecursive:
-                                part_selectionne = part
-                                break
-                        except Exception:
-                            pass
-                    if part_selectionne:
-                        break
-    except Exception as _e_sel:
-        print(f"[ORing] Détection sélection AVERT : {_e_sel}")
+    arete_preselectionnee = None
+    body_preselectionne = None
+
+    # (_info_arete déjà résolu plus haut, avant la garde étape 1b -- réutilisé
+    # ici pour éviter un second appel à resoudre_arete_selectionnee().)
+
+    def _cle_objet(_o):
+        """Identité d'un objet : le couple (document, Name).
+
+        `Name` seul n'identifie que DANS un document (mecanismes_partages.md
+        §6.1 règle 6) : deux composants liés ont tous deux un « Body ».
+        """
+        if _o is None:
+            return None
+        return (getattr(getattr(_o, 'Document', None), 'Name', None),
+                getattr(_o, 'Name', None))
+
+    def _contenu_de(_part, _profondeur=6):
+        """Ensemble des clés des objets réellement CONTENUS dans `_part`.
+
+        POURQUOI `Group` ET NON `OutListRecursive` (13/09/2026, mesuré sur le
+        poste de l'utilisateur, 12 composants sur 12) :
+
+            ORing_arbre_LCS1_Arbre  OutListRecursive (55 objets)
+                                    DÉBORDE sur : Body (Piston)
+
+        `OutListRecursive` est le graphe des **dépendances**, pas l'arbre de
+        contenance. Le corps tore d'un joint est attaché au corps PORTEUR : la
+        fermeture transitive avale donc le porteur et tout son contenu.
+
+        Tester l'appartenance dessus rendait vrai pour le Piston — et la
+        branche générique ouvrait alors un joint en modification quand
+        l'utilisateur sélectionnait sa pièce pour en créer un. Lequel des
+        quatre joints du Piston ? Le premier rendu par `parts.values()` :
+        arbitraire.
+
+        `Group` porte la contenance réelle, sur `App::Part` comme sur
+        `PartDesign::Body`. Un joint y contient son corps, qui y contient ses
+        features — dont le tore, ce qui préserve le raccourci arête.
+
+        Effet de bord voulu : un LCS, qui appartient à la pièce porteuse et
+        non au joint, cesse d'être vu comme un élément du joint. C'est la
+        règle §3.2 de `mecanismes_partages.md` — « un LCS est un repère de
+        positionnement, jamais un raccourci vers le composant qui le porte » —
+        obtenue ici sans garde explicite, par la seule justesse du critère.
+        """
+        _vus = set()
+        _file = [(_part, 0)]
+        _contenu = set()
+        while _file:
+            _o, _d = _file.pop(0)
+            if _d >= _profondeur:
+                continue
+            try:
+                _enfants = list(getattr(_o, 'Group', None) or [])
+            except Exception:
+                _enfants = []
+            for _e in _enfants:
+                _c = _cle_objet(_e)
+                if _c is None or _c in _vus:
+                    continue
+                _vus.add(_c)
+                _contenu.add(_c)
+                _file.append((_e, _d + 1))
+        return _contenu
+
+    def _part_oring_parmi(objets, _doc):
+        """Rend le Part ORing auquel appartient l'un de `objets`, ou None.
+
+        Extrait de la détection générique le 13/09/2026 pour pouvoir être
+        rejoué sur un objet précis plutôt que sur `Gui.Selection` -- laquelle
+        est vidée plus bas dès qu'une arête a été capturée.
+
+        L'appartenance se teste sur la CONTENANCE (`_contenu_de`), pas sur les
+        dépendances : voir la mesure citée dans sa docstring.
+        """
+        try:
+            from .metadata import lister_parts_oring
+            if _doc is None:
+                return None
+            parts = {p.Name: p for p in lister_parts_oring(_doc)}
+            if not parts:
+                return None
+            _cache = {}
+            for _obj in objets:
+                if _obj is None:
+                    continue
+                # Correspondance directe : l'objet EST un Part ORing.
+                if getattr(_obj, 'Name', None) in parts:
+                    return parts[_obj.Name]
+                # Correspondance indirecte : l'objet est CONTENU dans un Part
+                # ORing. Le contenu de chaque joint n'est calculé qu'une fois.
+                _cle = _cle_objet(_obj)
+                if _cle is None:
+                    continue
+                for _nom, _part in parts.items():
+                    try:
+                        if _nom not in _cache:
+                            _cache[_nom] = _contenu_de(_part)
+                        if _cle in _cache[_nom]:
+                            return _part
+                    except Exception:
+                        pass
+        except Exception as _e:
+            print(f"[ORing] Détection sélection AVERT : {_e}")
+        return None
+
+    if _info_arete is not None:
+        _objet_proprietaire = _info_arete[0]
+        # BUGFIX (03/09/2026, signale par l'utilisateur) : la selection 3D
+        # faite par l'utilisateur AVANT le lancement de la macro (pour
+        # designer l'arete de depart, spec Sec.3.4bis) n'etait jamais
+        # desactivee une fois son info capturee ci-dessus -- elle restait
+        # donc affichee en surbrillance de selection FreeCAD (aretes de la
+        # face blanches, hors theme PartDesign) pendant toute la session.
+        # Sans effet sur la branche 'else' plus bas (detection generique)
+        # qui a besoin de la selection live -- elle n'est jamais atteinte
+        # ici puisque _info_arete est non None.
+        try:
+            Gui.Selection.clearSelection()
+        except Exception:
+            pass
+        try:
+            _body_resolu = resoudre_body_depuis_objet(_objet_proprietaire)
+            if _body_resolu is not None:
+                body_preselectionne = _body_resolu
+                arete_preselectionnee = _info_arete
+            else:
+                # HARMONISATION AVEC SPRINGFULL (13/09/2026, demande
+                # utilisateur) : « sélectionner un ressort peut se faire sur
+                # une arête, ce qui n'est pas le cas pour les O-ring qui
+                # nécessitent une surface ».
+                #
+                # `resoudre_body_depuis_objet()` rend None sur un corps ORing
+                # -- à raison : un tore n'est jamais une pièce porteuse de
+                # gorge. Mais la branche « détection générique » plus bas
+                # n'est jamais atteinte quand une arête a été capturée, et la
+                # sélection vient d'être vidée : cliquer une arête de joint ne
+                # désignait donc RIEN, là où cliquer une face du même joint
+                # l'ouvrait en modification.
+                #
+                # Une arête qui appartient à un joint ne veut pas dire « créer
+                # un joint ici » — elle veut dire « CE joint ». On rejoue donc
+                # la détection générique sur l'objet propriétaire.
+                #
+                # Une arête de GORGE (sur la pièce porteuse) ne résout vers
+                # aucun Part ORing : elle continue de signifier « créer un
+                # joint ici », comme avant. La règle du 10/09/2026 — « c'est
+                # la nature de la sélection qui tranche » — est préservée,
+                # simplement affinée : une arête DU joint et une arête POUR un
+                # joint sont deux natures différentes.
+                part_selectionne = _part_oring_parmi(
+                    [_objet_proprietaire], doc)
+                if part_selectionne is not None:
+                    print("[ORing] Arête appartenant à un joint → ouverture "
+                          f"en modification : {part_selectionne.Label}")
+        except Exception as _e_arete:
+            print(f"[ORing] Détection arête pré-sélectionnée AVERT : {_e_arete}")
+    else:
+        # Pas d'arête circulaire sélectionnée : détection générique
+        # historique (Part ORing sélectionné directement, ou tout autre
+        # objet lui appartenant -- body, LCS, etc.).
+        part_selectionne = _part_oring_parmi(Gui.Selection.getSelection(), doc)
 
     if part_selectionne:
         print(f"[ORing] Joint pré-sélectionné détecté : {part_selectionne.Label}")
 
+    if arete_preselectionnee:
+        print(f"[ORing] Arête pré-sélectionnée détectée sur "
+              f"{body_preselectionne.Label} — nouveau joint assisté")
+
+    # Modification faite depuis une esquisse : proposer de la reprendre dans
+    # la macro (11/09/2026). Appelé AVANT la création du dialogue : si
+    # l'utilisateur accepte, le paramètre est remis à sa valeur d'avant, donc
+    # le dialogue se construit sur un modèle cohérent et sans dérive.
+    _reprise = _preparer_reprise_modification_esquisse(
+        doc, part_prefere=part_selectionne)
+
     # ── Créer et afficher le dialogue ─────────────────────────────────────
     dlg = DialogueORing(parent=Gui.getMainWindow())
 
-    if part_selectionne is not None:
+    if _reprise is not None:
+        # Même différé que l'ouverture sur joint pré-sélectionné ci-dessous :
+        # _ouvrir_depuis_selection() pose des widgets, la boucle Qt doit
+        # avoir démarré.
+        QtCore.QTimer.singleShot(
+            0, lambda r=_reprise: dlg._reprendre_modification_esquisse(r))
+    elif part_selectionne is not None:
         # Ouvrir directement sur l'onglet 2 avec les paramètres du joint
         QtCore.QTimer.singleShot(
             0, lambda p=part_selectionne: dlg._ouvrir_depuis_selection(p)
         )
+    elif arete_preselectionnee is not None:
+        # Nouveau joint assisté depuis une arête pré-sélectionnée.
+        #
+        # RÈGLE (10/09/2026, demande utilisateur) : une dérive ne préempte
+        # plus le raccourci. « Si un joint est sélectionné et qu'une dérive
+        # est constatée, alors on passe à la modification du joint. Si une
+        # arête est sélectionnée, on passe à la création du joint. » Les
+        # deux intentions sont distinctes et ne se disputent plus la
+        # priorité : c'est la nature de la sélection qui tranche.
+        #
+        # Jusqu'à cette date, une dérive sur n'importe quel joint du
+        # document faisait ignorer le raccourci **silencieusement** —
+        # l'utilisateur atterrissait dans le dialogue principal sans
+        # explication, le symptôme même qui a ouvert ce chantier
+        # (claude/constat_oring_arete_deja_gorge_3_4bis.md). Le contrôle de
+        # dérive lui-même est intact : il a simplement lieu plus bas, après
+        # l'assistant — voir le BUGFIX du 10/09/2026 qui suit.
+        #
+        # RÈGLE (10/09/2026, demande utilisateur) : « toute insertion de
+        # joint est supposée être faite sur une géométrie à jour ». Le
+        # contrôle de dérive a donc lieu AVANT de proposer l'assistant LCS.
+        #
+        # Cette garde existait déjà, et elle a été retirée le matin même à
+        # la demande de l'utilisateur (« une arête sélectionnée = créer ») :
+        # elle laissait alors insérer un joint sur un modèle non actualisé.
+        # Ce n'était pas la garde qui était fautive, c'était son SILENCE —
+        # elle écartait le raccourci sans un mot, et l'utilisateur
+        # atterrissait dans le dialogue principal sans explication. Elle est
+        # restaurée, et elle parle.
+        #
+        # L'insertion n'est pas perdue, seulement différée : une fois les
+        # joints actualisés, « 🎯 Créer depuis une arête 3D » (onglet 2)
+        # pose le nouveau joint sans quitter la macro.
+        _derives_precalc = None
+        _y_a_derive = False
+        _libelles_derive = []
+        try:
+            from .metadata import verifier_derives
+            _derives_precalc = verifier_derives(doc) if doc is not None else []
+            _libelles_derive = [d['part'].Label for d in _derives_precalc
+                                if d.get('derive')]
+            _y_a_derive = bool(_libelles_derive)
+        except Exception as _e_derive:
+            print(f"[ORing] Contrôle de dérive AVERT : {_e_derive}")
+            _derives_precalc = None
+            _y_a_derive = False
+
+
+        if _y_a_derive:
+            # Géométrie non à jour : le dialogue s'ouvre sur l'onglet 3, où
+            # les joints concernés se traitent. Pas d'assistant LCS.
+            dlg._onglet_initial(derives_precalcules=_derives_precalc)
+            QtWidgets.QMessageBox.information(
+                None,
+                tr("Joints must be updated first"),
+                tr("The geometry has changed since these seals were "
+                   "created:\n{joints}\n\n"
+                   "An insertion assumes an up-to-date model. Update them "
+                   "in the “3 · Existing seals” tab first, then use "
+                   "“🎯 Create from 3D edge” in tab 2 to place the new "
+                   "seal on the edge you selected.",
+                   joints='\n'.join('  · ' + _l for _l in _libelles_derive)))
+        else:
+            # BUGFIX (05/09/2026, signale par l'utilisateur : "la vue 3D
+            # est totalement figee") : l'assistant etait lance par un
+            # QTimer.singleShot(0) DEPUIS l'interieur de dlg.exec_(), donc
+            # alors que le dialogue ORing etait deja ApplicationModal --
+            # etat que le simple hide() de _afficher_dialogue_non_modal_3d
+            # ne suffisait pas a lever, la vue 3D restant bloquee. Il est
+            # desormais lance AVANT exec_() : le dialogue ORing n'a alors
+            # jamais ete affiche, aucune fenetre modale n'existe, et la vue
+            # 3D est pleinement navigable pendant l'ajustement de l'offset.
+            # Le dialogue ORing s'ouvre ensuite normalement, LCS et
+            # parametre deja renseignes (ou l'assistant annule).
+            if not dlg._demarrer_depuis_arete_preselectionnee(
+                    body_preselectionne, arete_preselectionnee):
+                # Assistant LCS annulé : la macro s'arrête là (demande
+                # utilisateur du 10/09/2026). Le dialogue ORing n'a jamais
+                # été affiché — il est détruit sans passer par exec_().
+                restaurer_visibilite_sketches()
+                try:
+                    dlg.deleteLater()
+                except Exception:
+                    pass
+                return None
+
+            # BUGFIX (10/09/2026) : _onglet_initial() DIFFÈRE sa sélection
+            # d'onglet par QTimer.singleShot(0), et sa docstring pose la
+            # précondition « appelée juste avant exec_() ». L'assistant LCS
+            # fait tourner une boucle d'événements locale : appelée AVANT
+            # lui, la bascule d'onglet partait PENDANT l'assistant. Elle est
+            # donc appelée APRÈS.
+            dlg._onglet_initial(derives_precalcules=_derives_precalc)
+            # Le raccourci depuis une arête vise la CRÉATION : onglet 2.
+            # Mise en file APRÈS celle de _onglet_initial(), donc c'est
+            # celle-ci qui s'applique — les deux partent avec un délai 0, et
+            # Qt les exécute dans l'ordre d'arrivée.
+            QtCore.QTimer.singleShot(0, lambda: dlg._tabs.setCurrentIndex(1))
     else:
         # Comportement normal : onglet 3 si dérive, sinon onglet 1
         dlg._onglet_initial()
 
     dlg.exec_()
+    # Les esquisses rendues visibles par la détection du paramètre
+    # retrouvent leur état d'origine — elles ne doivent pas survivre
+    # à la macro (demande utilisateur du 10/09/2026).
+    restaurer_visibilite_sketches()
     return dlg.get_resultat()
 
 
@@ -6403,4 +9475,3 @@ if __name__ == '__main__':
         afficher_synthese(r)
     else:
         lancer_dialogue()
-

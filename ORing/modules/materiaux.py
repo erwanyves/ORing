@@ -9,6 +9,9 @@ Testable sans FreeCAD.
 import json
 import os
 
+from .i18n import tr
+from .oring_debug import print  # noqa: A004 — masquage partage, voir oring_debug.py
+
 # Chemin vers le fichier JSON (relatif à ce module)
 _JSON_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'materiaux.json')
 
@@ -22,7 +25,7 @@ def _charger_table() -> dict:
     """Charge et retourne le contenu brut du JSON matériaux."""
     chemin = os.path.abspath(_JSON_PATH)
     if not os.path.isfile(chemin):
-        raise ErreurMateriaux(f"Fichier matériaux introuvable : {chemin}")
+        raise ErreurMateriaux(tr("Materials file not found: {path}", path=chemin))
     with open(chemin, 'r', encoding='utf-8') as f:
         return json.load(f)
 
@@ -54,9 +57,10 @@ def get_materiau(abreviation: str) -> dict:
     t = _table()
     cle = abreviation.upper()
     if cle not in t:
-        raise ErreurMateriaux(
-            f"Matériau '{abreviation}' inconnu. Disponibles : {list(t.keys())}"
-        )
+        raise ErreurMateriaux(tr(
+            "Material '{mat}' unknown. Available: {available}",
+            mat=abreviation, available=list(t.keys())
+        ))
     return t[cle]
 
 
@@ -120,44 +124,51 @@ def verifier_conditions(abreviation: str,
 
     # Température
     if temperature_C < t_min:
-        alertes.append(
-            f"Température {temperature_C}°C inférieure au minimum {t_min}°C pour {abreviation}"
-        )
+        alertes.append(tr(
+            "Temperature {t}°C below the minimum {t_min}°C for {mat}",
+            t=temperature_C, t_min=t_min, mat=abreviation
+        ))
     elif temperature_C > t_max:
-        alertes.append(
-            f"Température {temperature_C}°C supérieure au maximum {t_max}°C pour {abreviation}"
-        )
+        alertes.append(tr(
+            "Temperature {t}°C above the maximum {t_max}°C for {mat}",
+            t=temperature_C, t_max=t_max, mat=abreviation
+        ))
     elif temperature_C > t_max * 0.85:
-        avertissements.append(
-            f"Température {temperature_C}°C proche du maximum {t_max}°C pour {abreviation}"
-        )
+        avertissements.append(tr(
+            "Temperature {t}°C close to the maximum {t_max}°C for {mat}",
+            t=temperature_C, t_max=t_max, mat=abreviation
+        ))
 
     # Pression
     if pression_bar > p_max:
-        alertes.append(
-            f"Pression {pression_bar} bar supérieure au maximum {p_max} bar pour {abreviation}"
-        )
+        alertes.append(tr(
+            "Pressure {p} bar above the maximum {p_max} bar for {mat}",
+            p=pression_bar, p_max=p_max, mat=abreviation
+        ))
     elif pression_bar > p_max * 0.8:
-        avertissements.append(
-            f"Pression {pression_bar} bar proche du maximum {p_max} bar pour {abreviation}"
-        )
+        avertissements.append(tr(
+            "Pressure {p} bar close to the maximum {p_max} bar for {mat}",
+            p=pression_bar, p_max=p_max, mat=abreviation
+        ))
 
     # Fluide
     if fluide:
         compat = est_compatible(abreviation, fluide)
         if compat is False:
-            alertes.append(
-                f"Fluide '{fluide}' INCOMPATIBLE avec {abreviation}"
-            )
+            alertes.append(tr(
+                "Fluid '{fluide}' INCOMPATIBLE with {mat}",
+                fluide=fluide, mat=abreviation
+            ))
         elif compat is None:
-            avertissements.append(
-                f"Fluide '{fluide}' non référencé pour {abreviation} — vérifier manuellement"
-            )
+            avertissements.append(tr(
+                "Fluid '{fluide}' not referenced for {mat} — check manually",
+                fluide=fluide, mat=abreviation
+            ))
 
     # Cas spécial PTFE
     if abreviation.upper() == 'PTFE':
         avertissements.append(
-            "PTFE : utilisation comme bague anti-extrusion uniquement, pas comme JT dynamique"
+            tr("PTFE: use as an anti-extrusion ring only, not as a dynamic O-ring")
         )
 
     return {

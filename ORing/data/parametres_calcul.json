@@ -13,7 +13,8 @@
     "DIN_3771",
     "JIS_B2401",
     "METRIC",
-    "AS_568"
+    "AS_568",
+    "LJF_R"
   ],
   "types_montage": [
     "statique",
@@ -35,7 +36,9 @@
     },
     "alesage": {
       "compression_min": 0.0,
-      "compression_max": 3.0
+      "compression_max": 3.0,
+      "compression_avertissement": 2.0,
+      "_commentaire": "Gorge dans alesage : le joint est legerement COMPRIME (stretch negatif, normal). Vert jusqu'a compression_avertissement, orange jusqu'a compression_max, rouge au-dela."
     }
   },
   "stretch_global": {
