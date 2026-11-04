@@ -13,7 +13,7 @@ CHANGER LA LANGUE :
   Code inconnu (pas de .json correspondant) → anglais.
 """
 
-__version__ = "3.0"
+__version__ = "3.0.1"
 
 import sys
 import os

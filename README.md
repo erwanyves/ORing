@@ -2,11 +2,11 @@
 
 [![License: LGPL v2.1](https://img.shields.io/badge/License-LGPL_v2.1-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
 [![FreeCAD](https://img.shields.io/badge/FreeCAD-1.0%2B-orange.svg)](https://www.freecad.org)
-[![Version](https://img.shields.io/badge/version-3.0-green.svg)](#version-history)
+[![Version](https://img.shields.io/badge/version-3.0.1-green.svg)](#version-history)
 
 A parametric FreeCAD macro that sizes an O-ring groove from the standards, cuts it into your part and adds the O-ring itself as a 3D body. Every assembly stays editable afterwards.
 
-**Author:** Yves Guillou · **Version:** 3.0 · **License:** LGPL v2.1
+**Author:** Yves Guillou · **Version:** 3.0.1 · **License:** LGPL v2.1
 
 ---
 
@@ -126,6 +126,9 @@ The guides were written for version 2. The workflow is unchanged, but they do no
 ---
 
 ## Version history
+
+**3.0.1** (November 2026)
+- The debug trace of `lang.txt` no longer appears in the Report view at every launch.
 
 **3.0** (October 2026)
 - Linked assemblies: insertion, editing and colours through `App::Link`. Partially loaded documents are completed before writing.

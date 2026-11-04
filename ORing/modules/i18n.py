@@ -145,9 +145,13 @@ def init(oring_dir: str) -> str:
         try:
             with open(lang_file, 'r', encoding='utf-8') as f:
                 contenu = f.read()
-            print(f"[ORing i18n] lang.txt contenu : {repr(contenu)}")
             lignes = [l.strip() for l in contenu.strip().splitlines()
                       if l.strip() and not l.strip().startswith('#')]
+            # Trace des seules lignes RETENUES, jamais du contenu brut : le
+            # masquage de oring_debug juge la phrase entière, et le commentaire
+            # de lang.txt contient « fallback », mot d'alerte depuis le 13/09 —
+            # la trace s'affichait à chaque lancement (constat du 20/10/2026).
+            print(f"[ORing i18n] lang.txt lignes retenues : {lignes!r}")
             if lignes:
                 candidate = lignes[0].lower()[:2]
                 if candidate.isalpha():
